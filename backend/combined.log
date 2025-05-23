@@ -1,0 +1,47 @@
+{"level":"error","message":"Failed to start server: password authentication failed for user \"telecom_user\"","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"Database connection has been established successfully.","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"Database synchronized successfully (force: true)","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"Server running on port 5000","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"API documentation available at http://localhost:5000/api/docs","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /logo192.png","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /favicon.ico","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /logo192.png","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /logo192.png","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /main.cc75cfa3ad37d5bb0077.hot-update.json","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /main.a7da15dac760e5dec3ea.hot-update.json","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /api/projects?limit=5","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /api/projects?limit=5","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /logo192.png","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /api/projects?limit=5","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /logo192.png","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /api/projects?limit=5","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /api/projects?limit=5","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /api/projects?limit=5","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /logo192.png","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /api/projects","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /api/projects","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"POST /api/projects","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /api/projects","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /api/projects","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /api/projects?limit=5","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /api/projects?limit=5","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"POST /api/calculate/optical","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /api/projects?limit=5","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /api/projects?limit=5","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /api/projects?limit=5","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /api/projects?limit=5","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /api/projects?limit=5","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /api/projects?limit=5","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /api/projects","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /api/projects","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /api/projects","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /api/projects","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"POST /api/projects","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /api/projects?limit=5","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /api/projects?limit=5","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /logo192.png","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /api/projects?limit=5","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /api/projects?limit=5","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /logo192.png","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /main.f0580201b40eef97c282.hot-update.json","service":"telecom-dimensioning-tool"}
+{"level":"info","message":"GET /logo192.png","service":"telecom-dimensioning-tool"}
