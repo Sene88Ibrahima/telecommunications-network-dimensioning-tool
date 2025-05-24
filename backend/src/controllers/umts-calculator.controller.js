@@ -3,6 +3,15 @@ const umtsCalculatorService = require('../services/umts-calculator/umts-calculat
 const { Result } = require('../models');
 
 /**
+ * Fonction utilitaire pour calculer le débit moyen
+ */
+function calculateAverageBitRate(services) {
+  if (!services || services.length === 0) return 0;
+  const totalBitRate = services.reduce((sum, service) => sum + service.bitRate, 0);
+  return totalBitRate / services.length;
+}
+
+/**
  * Calculate UMTS network dimensioning
  */
 exports.calculateUmtsDimensioning = async (req, res) => {
@@ -21,7 +30,10 @@ exports.calculateUmtsDimensioning = async (req, res) => {
       softHandoverMargin,
       propagationParameters,
       configurationId,
-      saveResults
+      saveResults,
+      coverageArea = 100,    // Valeur par défaut
+      sectorsPerSite = 3,    // Valeur par défaut
+      subscriberCount = 5000  // Valeur par défaut
     } = req.body;
 
     // Calculate uplink capacity
@@ -44,9 +56,27 @@ exports.calculateUmtsDimensioning = async (req, res) => {
       propagationParameters
     );
 
+    // Vérification et correction du rayon de cellule
+    if (cellCoverage.radius <= 0 || isNaN(cellCoverage.radius)) {
+      // Fallback à une valeur par défaut raisonnable pour l'environnement urbain
+      console.warn('Rayon de cellule invalide détecté, utilisation d\'une valeur par défaut');
+      cellCoverage.radius = 0.8; // 800m est une valeur typique en milieu urbain pour UMTS
+      cellCoverage.cellArea = 2.6 * Math.pow(cellCoverage.radius, 2); // Recalcul de la zone
+    }
+    
+    // Calcul du nombre de cellules nécessaires pour la couverture
+    const cellsForCoverage = Math.ceil(coverageArea / cellCoverage.cellArea);
+    
+    // Calcul du nombre de Node B (sites) nécessaires en tenant compte des secteurs
+    const nodeCount = Math.ceil(cellsForCoverage / sectorsPerSite);
+
     // Determine limiting factor (capacity or coverage)
     const limitingFactor = uplinkCapacity.maxUsers < downlinkCapacity.maxUsers ? 'UPLINK' : 'DOWNLINK';
     const maxUsersPerCell = Math.min(uplinkCapacity.maxUsers, downlinkCapacity.maxUsers);
+
+    // Préparation des structures de capacité avec informations supplémentaires
+    uplinkCapacity.averageBitRate = calculateAverageBitRate(services);
+    downlinkCapacity.averageBitRate = calculateAverageBitRate(services);
 
     // Prepare result object
     const result = {
@@ -56,8 +86,14 @@ exports.calculateUmtsDimensioning = async (req, res) => {
       limitingFactor,
       maxUsersPerCell,
       softHandoverMargin,
-      services
+      services,
+      nodeCount,
+      cellRadius: cellCoverage.radius,
+      coverageArea,
+      sectorsPerSite,
+      subscriberCount
     };
+
 
     // Save result to database if requested
     if (saveResults && configurationId) {

@@ -39,10 +39,68 @@ const ResultsViewer = () => {
         console.log('API Response:', response);
         console.log('Response structure:', JSON.stringify(response.data, null, 2));
         
+        // Fonction pour nettoyer récursivement les objets complexes
+        function sanitizeComplexObjects(obj) {
+          if (!obj) return obj;
+          
+          // Si c'est un tableau, on traite chaque élément
+          if (Array.isArray(obj)) {
+            return obj.map(item => sanitizeComplexObjects(item));
+          }
+          
+          // Si ce n'est pas un objet, on retourne tel quel
+          if (typeof obj !== 'object') return obj;
+          
+          // Créer un nouvel objet pour les résultats nettoyés
+          const result = {};
+          
+          // Traiter chaque propriété de l'objet
+          for (const key in obj) {
+            if (Object.prototype.hasOwnProperty.call(obj, key)) {
+              // Cas spécial pour les services UMTS
+              if (key === 'services' && Array.isArray(obj[key])) {
+                result[key] = obj[key].map(service => {
+                  if (service && typeof service === 'object' && service.type && service.bitRate) {
+                    return `${service.type} - ${service.bitRate} kbps`;
+                  }
+                  return JSON.stringify(service);
+                });
+              }
+              // Cas spécial pour les paramètres de propagation
+              else if (key === 'propagationParameters' && typeof obj[key] === 'object') {
+                const params = obj[key];
+                result[key] = JSON.stringify(params);
+              }
+              // Cas spécial pour uplinkCapacity et downlinkCapacity
+              else if ((key === 'uplinkCapacity' || key === 'downlinkCapacity') && typeof obj[key] === 'object') {
+                // Préserver certaines valeurs numériques importantes
+                const capacity = obj[key];
+                // Créer un objet simple avec uniquement les propriétés numériques importantes
+                const simpleCapacity = {
+                  maxUsers: capacity.maxUsers,
+                  totalLoadFactor: capacity.totalLoadFactor,
+                  loadFactor: capacity.loadFactor,
+                  averageBitRate: capacity.averageBitRate
+                };
+                // Convertir le reste en JSON
+                result[key] = simpleCapacity;
+              }
+              // Traitement récursif pour les autres objets
+              else {
+                result[key] = sanitizeComplexObjects(obj[key]);
+              }
+            }
+          }
+          
+          return result;
+        }
+        
         if (response.data && response.data.data) {
           console.log('Setting results with data:', response.data.data);
+          // Nettoyer les données avant de les stocker
+          const sanitizedData = sanitizeComplexObjects(response.data.data);
           // Accéder aux données dans la structure correcte
-          setResults(response.data.data);
+          setResults(sanitizedData);
         } else {
           console.error('Invalid API response structure', response.data);
           throw new Error('Structure de réponse API invalide');

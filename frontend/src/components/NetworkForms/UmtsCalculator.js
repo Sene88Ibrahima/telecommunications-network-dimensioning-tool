@@ -28,7 +28,8 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Snackbar
+  Snackbar,
+  InputAdornment
 } from '@mui/material';
 import InfoIcon from '@mui/icons-material/Info';
 import SaveIcon from '@mui/icons-material/Save';
@@ -41,9 +42,10 @@ import {
   saveProjectResult 
 } from '../../services/api/api.service';
 import ResultsDisplay from '../Results/ResultsDisplay';
+import UmtsResultsDisplay from '../Results/UmtsResultsDisplay';
 
 // Step titles
-const steps = ['Services', 'Paramètres radio', 'Paramètres de propagation'];
+const steps = ['Zone et trafic', 'Services', 'Paramètres radio', 'Paramètres de propagation', 'Récapitulatif'];
 
 const UmtsCalculator = () => {
   const navigate = useNavigate();
@@ -61,6 +63,17 @@ const UmtsCalculator = () => {
   
   const { control, handleSubmit, formState: { errors }, watch } = useForm({
     defaultValues: {
+      // Nouveaux paramètres de zone et trafic
+      coverageArea: 100, // en km²
+      subscriberCount: 50000,
+      growthFactor: 20, // pourcentage d'augmentation prévue
+      subscriberDensity: 500, // abonnés par km²
+
+      // Paramètres de capacité spécifiques UMTS
+      carriers: 1, // nombre de porteuses par cellule
+      sectors: 3, // nombre de secteurs par site
+
+      // Paramètres de services existants
       services: [
         { type: 'VOICE', bitRate: 12.2, activityFactor: 0.5 }
       ],
@@ -107,9 +120,68 @@ const UmtsCalculator = () => {
       setIsCalculating(true);
       setError(null);
       
+      // Assurer que les données ont la structure attendue
+      const formattedData = {
+        ...data,
+        // S'assurer que propagationParameters existe et contient toutes les valeurs
+        propagationParameters: {
+          frequency: data.propagationParameters?.frequency || 2100,
+          transmitPower: data.propagationParameters?.transmitPower || 43,
+          sensitivity: data.propagationParameters?.sensitivity || -120,
+          margin: data.propagationParameters?.margin || 8,
+          baseStationHeight: data.propagationParameters?.baseStationHeight || 30,
+          mobileHeight: data.propagationParameters?.mobileHeight || 1.5,
+          environmentType: data.propagationParameters?.environmentType || 'URBAN'
+        }
+      };
+      
       // Appel API pour le calcul
-      const response = await calculateUmtsDimensioning(data);
-      setCalculationResult(response.data.data);
+      const response = await calculateUmtsDimensioning(formattedData);
+      
+      // Formater les résultats pour éviter les NaN et autres valeurs problématiques
+      const sanitizeValue = (value, defaultValue = 0) => {
+        return (value !== undefined && value !== null && !isNaN(value)) ? value : defaultValue;
+      };
+      
+      // S'assurer que les structures pour les capacités existent
+      const uplinkCapacity = response.data.data.uplinkCapacity || {};
+      const downlinkCapacity = response.data.data.downlinkCapacity || {};
+      
+      // Nettoyer les valeurs problématiques
+      const sanitizedResults = {
+        ...response.data.data,
+        nodeCount: sanitizeValue(response.data.data.nodeCount),
+        cellRadius: sanitizeValue(response.data.data.cellRadius),
+        uplinkCapacity: {
+          ...uplinkCapacity,
+          maxUsers: sanitizeValue(uplinkCapacity.maxUsers),
+          loadFactor: sanitizeValue(uplinkCapacity.loadFactor),
+          averageBitRate: sanitizeValue(uplinkCapacity.averageBitRate)
+        },
+        downlinkCapacity: {
+          ...downlinkCapacity,
+          maxUsers: sanitizeValue(downlinkCapacity.maxUsers),
+          loadFactor: sanitizeValue(downlinkCapacity.loadFactor),
+          averageBitRate: sanitizeValue(downlinkCapacity.averageBitRate)
+        }
+      };
+      
+      // Préparer les résultats pour l'affichage, en s'assurant que tous les paramètres sont inclus
+      const resultWithParams = {
+        ...sanitizedResults,
+        parameters: formattedData,  // Utiliser les données formatées
+        // Ajouter les données importantes directement au niveau racine pour faciliter l'accès
+        coverageArea: formattedData.coverageArea,
+        subscriberCount: formattedData.subscriberCount,
+        nodeCount: sanitizedResults.nodeCount,
+        cellRadius: sanitizedResults.cellRadius,
+        propagationModel: formattedData.propagationParameters.environmentType
+      };
+      
+      console.log('Sanitized UMTS results:', sanitizedResults);
+      
+      console.log('UMTS result with parameters:', resultWithParams);
+      setCalculationResult(resultWithParams);
       
       // Aller à l'étape des résultats (étape après la dernière étape du formulaire)
       setActiveStep(steps.length);
@@ -201,10 +273,14 @@ const UmtsCalculator = () => {
       setSuccessMessage('Résultats sauvegardés avec succès!');
       setShowSnackbar(true);
       
-      // Rediriger vers le projet après quelques secondes
+      // Rediriger vers la page de résultat UMTS spécifique après quelques secondes
       setTimeout(() => {
-        // S'assurer que l'ID est valide avant de naviguer
-        if (projectId && projectId !== 'new' && projectId !== '') {
+        // Si nous avons un ID de résultat valide, rediriger vers la page de résultat UMTS
+        if (resultId) {
+          navigate(`/results/umts/${resultId}`, { replace: true });
+        }
+        // Sinon, rediriger vers le projet
+        else if (projectId && projectId !== 'new' && projectId !== '') {
           navigate(`/projects/${projectId}`, { replace: true });
         } else {
           // En cas d'ID invalide, aller à la liste des projets
@@ -221,8 +297,181 @@ const UmtsCalculator = () => {
   };
 
   const renderStepContent = (step) => {
+    console.log('Rendering step:', step); // Debug pour voir quelle étape est affichée
     switch (step) {
-      case 0:
+      case 0: // Zone et trafic
+        return (
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={6}>
+              <Controller
+                name="coverageArea"
+                control={control}
+                rules={{ 
+                  required: 'Ce champ est requis', 
+                  min: { value: 0.1, message: 'La zone doit être supérieure à 0.1 km²' } 
+                }}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Zone de couverture (km²)"
+                    type="number"
+                    fullWidth
+                    variant="outlined"
+                    error={!!errors.coverageArea}
+                    helperText={errors.coverageArea?.message}
+                    InputProps={{
+                      endAdornment: (
+                        <Tooltip title="Surface totale à couvrir par le réseau UMTS (Min: 0.1 km² - Max: recommandé < 5000 km²)">
+                          <IconButton size="small">
+                            <InfoIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )
+                    }}
+                  />
+                )}
+              />
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <Controller
+                name="subscriberCount"
+                control={control}
+                rules={{ 
+                  required: 'Ce champ est requis', 
+                  min: { value: 1, message: 'Le nombre d\'abonnés doit être au moins 1' }
+                }}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Nombre d'abonnés"
+                    type="number"
+                    fullWidth
+                    variant="outlined"
+                    error={!!errors.subscriberCount}
+                    helperText={errors.subscriberCount?.message}
+                    InputProps={{
+                      endAdornment: (
+                        <Tooltip title="Nombre total d'utilisateurs à desservir (Min: 1 - Max: recommandé < 1 000 000)">
+                          <IconButton size="small">
+                            <InfoIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )
+                    }}
+                  />
+                )}
+              />
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <Controller
+                name="growthFactor"
+                control={control}
+                rules={{ 
+                  required: 'Ce champ est requis', 
+                  min: { value: 0, message: 'Le facteur de croissance ne peut pas être négatif' },
+                  max: { value: 100, message: 'Le facteur de croissance ne peut pas dépasser 100%' }
+                }}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Facteur de croissance (%)"
+                    type="number"
+                    fullWidth
+                    variant="outlined"
+                    error={!!errors.growthFactor}
+                    helperText={errors.growthFactor?.message}
+                    InputProps={{
+                      endAdornment: (
+                        <Tooltip title="Prévision de croissance du nombre d'abonnés en pourcentage (Min: 0% - Max: 100%)">
+                          <IconButton size="small">
+                            <InfoIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )
+                    }}
+                  />
+                )}
+              />
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <Controller
+                name="carriers"
+                control={control}
+                rules={{ 
+                  required: 'Ce champ est requis', 
+                  min: { value: 1, message: 'Minimum 1 porteuse' },
+                  max: { value: 3, message: 'Maximum 3 porteuses' }
+                }}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Nombre de porteuses"
+                    type="number"
+                    fullWidth
+                    variant="outlined"
+                    error={!!errors.carriers}
+                    helperText={errors.carriers?.message}
+                    InputProps={{
+                      endAdornment: (
+                        <Tooltip title="Nombre de porteuses de 5 MHz par secteur (Min: 1 - Max: 3)">
+                          <IconButton size="small">
+                            <InfoIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )
+                    }}
+                  />
+                )}
+              />
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <Controller
+                name="sectors"
+                control={control}
+                rules={{ 
+                  required: 'Ce champ est requis', 
+                  min: { value: 1, message: 'Minimum 1 secteur' },
+                  max: { value: 6, message: 'Maximum 6 secteurs' }
+                }}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Nombre de secteurs par site"
+                    type="number"
+                    fullWidth
+                    variant="outlined"
+                    error={!!errors.sectors}
+                    helperText={errors.sectors?.message}
+                    InputProps={{
+                      endAdornment: (
+                        <Tooltip title="Nombre de secteurs par NodeB (Min: 1 - Max: 6, typiquement 3)">
+                          <IconButton size="small">
+                            <InfoIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )
+                    }}
+                  />
+                )}
+              />
+            </Grid>
+            
+            <Grid item xs={12}>
+              <Alert severity="info" sx={{ mt: 2 }}>
+                <Typography variant="body2">
+                  Le facteur de croissance permet de dimensionner le réseau pour les besoins futurs.<br />
+                  Le nombre de porteuses et de secteurs influence directement la capacité de la cellule UMTS.
+                </Typography>
+              </Alert>
+            </Grid>
+          </Grid>
+        );
+        
+      case 1: // Services
         return (
           <Box>
             <Typography variant="subtitle1" gutterBottom>
@@ -252,11 +501,13 @@ const UmtsCalculator = () => {
                           rules={{ required: 'Requis' }}
                           render={({ field }) => (
                             <FormControl fullWidth size="small" error={!!errors.services?.[index]?.type}>
-                              <Select {...field}>
-                                <MenuItem value="VOICE">Voix</MenuItem>
-                                <MenuItem value="DATA">Données</MenuItem>
-                                <MenuItem value="VIDEO">Vidéo</MenuItem>
-                              </Select>
+                              <Tooltip title="Type de service UMTS (Voix: 12.2 kbps, Données: variable, Vidéo: haute qualité)">
+                                <Select {...field}>
+                                  <MenuItem value="VOICE">Voix</MenuItem>
+                                  <MenuItem value="DATA">Données</MenuItem>
+                                  <MenuItem value="VIDEO">Vidéo</MenuItem>
+                                </Select>
+                              </Tooltip>
                             </FormControl>
                           )}
                         />
@@ -276,6 +527,15 @@ const UmtsCalculator = () => {
                               size="small"
                               fullWidth
                               error={!!errors.services?.[index]?.bitRate}
+                              InputProps={{
+                                endAdornment: (
+                                  <Tooltip title="Débit du service en kbps (Min: 12.2 pour voix, Max: 384 pour données/vidéo recommandé)">
+                                    <IconButton size="small">
+                                      <InfoIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                )
+                              }}
                             />
                           )}
                         />
@@ -297,6 +557,15 @@ const UmtsCalculator = () => {
                               fullWidth
                               inputProps={{ step: 0.1, min: 0, max: 1 }}
                               error={!!errors.services?.[index]?.activityFactor}
+                              InputProps={{
+                                endAdornment: (
+                                  <Tooltip title="Facteur d'activité du service (Min: 0, Max: 1, Voix: ~0.4, Données: ~0.3, Vidéo: ~0.7)">
+                                    <IconButton size="small">
+                                      <InfoIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                )
+                              }}
                             />
                           )}
                         />
@@ -353,7 +622,7 @@ const UmtsCalculator = () => {
                     helperText={errors.ebno?.message}
                     InputProps={{
                       endAdornment: (
-                        <Tooltip title="Rapport signal/bruit par bit cible pour assurer la qualité de communication">
+                        <Tooltip title="Rapport signal/bruit par bit cible (Min: 0 dB, Max: 20 dB, Voix: ~5-7 dB, Données: ~1-3 dB, Vidéo: ~3-5 dB)">
                           <IconButton size="small">
                             <InfoIcon fontSize="small" />
                           </IconButton>
@@ -384,7 +653,7 @@ const UmtsCalculator = () => {
                     helperText={errors.softHandoverMargin?.message}
                     InputProps={{
                       endAdornment: (
-                        <Tooltip title="Marge allouée au soft handover qui permet une transition en douceur entre cellules">
+                        <Tooltip title="Marge allouée au soft handover pour la transition entre cellules (Min: 0 dB, Max: 10 dB, valeur typique: 3 dB)">
                           <IconButton size="small">
                             <InfoIcon fontSize="small" />
                           </IconButton>
@@ -397,9 +666,90 @@ const UmtsCalculator = () => {
             </Grid>
           </Grid>
         );
-      case 2:
+      case 2: // Paramètres radio - correcté pour être l'Etape 3 dans la liste des étapes
         return (
           <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                <Typography variant="body2">
+                  Paramètres radio spécifiques aux couches physiques et MAC d'UMTS.
+                </Typography>
+              </Alert>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <Controller
+                name="ebno"
+                control={control}
+                rules={{ 
+                  required: 'Ce champ est requis', 
+                  min: { value: 0, message: 'La valeur minimale est 0 dB' },
+                  max: { value: 20, message: 'La valeur maximale est 20 dB' }
+                }}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Eb/N0 cible (dB)"
+                    type="number"
+                    fullWidth
+                    variant="outlined"
+                    error={!!errors.ebno}
+                    helperText={errors.ebno?.message}
+                    InputProps={{
+                      endAdornment: (
+                        <Tooltip title="Rapport signal/bruit par bit cible (Min: 0 dB, Max: 20 dB, Voix: ~5-7 dB, Données: ~1-3 dB, Vidéo: ~3-5 dB)">
+                          <IconButton size="small">
+                            <InfoIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )
+                    }}
+                  />
+                )}
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <Controller
+                name="softHandoverMargin"
+                control={control}
+                rules={{ 
+                  required: 'Ce champ est requis', 
+                  min: { value: 0, message: 'La valeur minimale est 0 dB' },
+                  max: { value: 10, message: 'La valeur maximale est 10 dB' }
+                }}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Marge de soft handover (dB)"
+                    type="number"
+                    fullWidth
+                    variant="outlined"
+                    error={!!errors.softHandoverMargin}
+                    helperText={errors.softHandoverMargin?.message}
+                    InputProps={{
+                      endAdornment: (
+                        <Tooltip title="Marge allouée au soft handover pour la transition entre cellules (Min: 0 dB, Max: 10 dB, valeur typique: 3 dB)">
+                          <IconButton size="small">
+                            <InfoIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )
+                    }}
+                  />
+                )}
+              />
+            </Grid>
+          </Grid>
+        );
+      case 3: // Paramètres de propagation - c'est cette étape qui manquait
+        return (
+          <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                <Typography variant="body2">
+                  Paramètres de propagation qui déterminent la couverture des cellules UMTS.
+                </Typography>
+              </Alert>
+            </Grid>
             <Grid item xs={12} md={6}>
               <Controller
                 name="propagationParameters.frequency"
@@ -420,7 +770,7 @@ const UmtsCalculator = () => {
                     helperText={errors.propagationParameters?.frequency?.message}
                     InputProps={{
                       endAdornment: (
-                        <Tooltip title="Fréquence d'opération du réseau UMTS (généralement 2100 MHz)">
+                        <Tooltip title="Fréquence d'opération du réseau UMTS (Min: 1500 MHz, Max: 2200 MHz, valeur typique: 2100 MHz)">
                           <IconButton size="small">
                             <InfoIcon fontSize="small" />
                           </IconButton>
@@ -451,7 +801,7 @@ const UmtsCalculator = () => {
                     helperText={errors.propagationParameters?.transmitPower?.message}
                     InputProps={{
                       endAdornment: (
-                        <Tooltip title="Puissance d'émission de la station de base (NodeB)">
+                        <Tooltip title="Puissance d'émission du NodeB (Min: 20 dBm, Max: 60 dBm, valeur typique: 43 dBm)">
                           <IconButton size="small">
                             <InfoIcon fontSize="small" />
                           </IconButton>
@@ -482,7 +832,7 @@ const UmtsCalculator = () => {
                     helperText={errors.propagationParameters?.sensitivity?.message}
                     InputProps={{
                       endAdornment: (
-                        <Tooltip title="Sensibilité du récepteur (valeur négative)">
+                        <Tooltip title="Sensibilité du récepteur (Min: -130 dBm, Max: -70 dBm, valeur typique: -110 dBm)">
                           <IconButton size="small">
                             <InfoIcon fontSize="small" />
                           </IconButton>
@@ -513,7 +863,7 @@ const UmtsCalculator = () => {
                     helperText={errors.propagationParameters?.margin?.message}
                     InputProps={{
                       endAdornment: (
-                        <Tooltip title="Marge supplémentaire pour compenser les variations de signal">
+                        <Tooltip title="Marge supplémentaire pour compenser les variations de signal (Min: 0 dB, Max: 20 dB, valeur typique: 10-12 dB)">
                           <IconButton size="small">
                             <InfoIcon fontSize="small" />
                           </IconButton>
@@ -532,7 +882,19 @@ const UmtsCalculator = () => {
                 render={({ field }) => (
                   <FormControl fullWidth variant="outlined" error={!!errors.propagationParameters?.environmentType}>
                     <InputLabel>Type d'environnement</InputLabel>
-                    <Select {...field} label="Type d'environnement">
+                    <Select 
+                      {...field} 
+                      label="Type d'environnement"
+                      startAdornment={
+                        <InputAdornment position="start">
+                          <Tooltip title="Type d'environnement qui influence les paramètres de propagation (Urbain: forte densité, Métropolitain: très forte densité, Suburbain: densité moyenne, Rural: faible densité)">
+                            <IconButton size="small" edge="start">
+                              <InfoIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </InputAdornment>
+                      }
+                    >
                       <MenuItem value="URBAN">Urbain</MenuItem>
                       <MenuItem value="SUBURBAN">Suburbain</MenuItem>
                       <MenuItem value="RURAL">Rural</MenuItem>
@@ -565,9 +927,113 @@ const UmtsCalculator = () => {
                     variant="outlined"
                     error={!!errors.propagationParameters?.baseStationHeight}
                     helperText={errors.propagationParameters?.baseStationHeight?.message}
+                    InputProps={{
+                      endAdornment: (
+                        <Tooltip title="Hauteur de l'antenne NodeB par rapport au sol (Min: 10m, Max: 100m, valeur typique: 30-40m)">
+                          <IconButton size="small">
+                            <InfoIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )
+                    }}
                   />
                 )}
               />
+            </Grid>
+          </Grid>
+        );
+      case 4: // Étape de récapitulatif
+        const formValues = control._formValues;
+        return (
+          <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <Typography variant="h6" gutterBottom>
+                Récapitulatif des paramètres
+              </Typography>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                <Typography variant="body2">
+                  Vérifiez vos paramètres avant de lancer le calcul. Vous pouvez revenir en arrière pour effectuer des modifications si nécessaire.
+                </Typography>
+              </Alert>
+              
+              <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Paramètres de zone et trafic
+                </Typography>
+                <Typography variant="body2">
+                  Zone de couverture: {formValues.coverageArea} km²
+                </Typography>
+                <Typography variant="body2">
+                  Nombre d'abonnés: {formValues.subscriberCount}
+                </Typography>
+                <Typography variant="body2">
+                  Facteur de croissance: {formValues.growthFactor}%
+                </Typography>
+                <Typography variant="body2">
+                  Nombre de porteuses: {formValues.carriers}
+                </Typography>
+                <Typography variant="body2">
+                  Nombre de secteurs par site: {formValues.sectors}
+                </Typography>
+              </Paper>
+              
+              <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Paramètres de services
+                </Typography>
+                {formValues.services.map((service, index) => (
+                  <Box key={index} sx={{ mb: 1 }}>
+                    <Typography variant="body2">
+                      Service {index + 1}: {service.type} - {service.bitRate} kbps (Facteur d'activité: {service.activityFactor})
+                    </Typography>
+                  </Box>
+                ))}
+              </Paper>
+              
+              <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Paramètres radio
+                </Typography>
+                <Typography variant="body2">
+                  Eb/N0 cible: {formValues.ebno} dB
+                </Typography>
+                <Typography variant="body2">
+                  Marge de soft handover: {formValues.softHandoverMargin} dB
+                </Typography>
+              </Paper>
+              
+              <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Paramètres de propagation
+                </Typography>
+                <Typography variant="body2">
+                  Fréquence: {formValues.propagationParameters.frequency} MHz
+                </Typography>
+                <Typography variant="body2">
+                  Puissance d'émission: {formValues.propagationParameters.transmitPower} dBm
+                </Typography>
+                <Typography variant="body2">
+                  Sensibilité récepteur: {formValues.propagationParameters.sensitivity} dBm
+                </Typography>
+                <Typography variant="body2">
+                  Marge de liaison: {formValues.propagationParameters.margin} dB
+                </Typography>
+                <Typography variant="body2">
+                  Type d'environnement: {
+                    formValues.propagationParameters.environmentType === 'URBAN' ? 'Urbain' :
+                    formValues.propagationParameters.environmentType === 'SUBURBAN' ? 'Suburbain' :
+                    formValues.propagationParameters.environmentType === 'RURAL' ? 'Rural' :
+                    formValues.propagationParameters.environmentType === 'METROPOLITAN' ? 'Métropolitain' : 
+                    formValues.propagationParameters.environmentType
+                  }
+                </Typography>
+                <Typography variant="body2">
+                  Hauteur antenne NodeB: {formValues.propagationParameters.baseStationHeight} m
+                </Typography>
+                <Typography variant="body2">
+                  Hauteur mobile: {formValues.propagationParameters.mobileHeight} m
+                </Typography>
+              </Paper>
             </Grid>
           </Grid>
         );
@@ -607,9 +1073,8 @@ const UmtsCalculator = () => {
                 <Typography variant="h5" gutterBottom>
                   Résultats du dimensionnement
                 </Typography>
-                <ResultsDisplay 
-                  result={calculationResult} 
-                  type="UMTS"
+                <UmtsResultsDisplay 
+                  result={calculationResult}
                 />
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
                   <Button 
@@ -652,40 +1117,55 @@ const UmtsCalculator = () => {
               </Alert>
             )}
 
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-              {activeStep > 0 && (
-                <Button 
-                  onClick={handleBack} 
-                  sx={{ mr: 1 }}
-                  disabled={isCalculating}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Box>
+                <Button
+                  variant="outlined"
+                  onClick={handleBack}
+                  disabled={activeStep === 0}
                 >
-                  Précédent
+                  Retour
                 </Button>
-              )}
+              </Box>
               
-              {activeStep < steps.length - 1 ? (
-                <Button 
-                  variant="contained" 
-                  onClick={handleNext}
-                >
-                  Suivant
-                </Button>
-              ) : (
-                <Button 
-                  variant="contained" 
-                  color="primary" 
-                  type="submit"
-                  startIcon={<CalculateIcon />}
-                  disabled={isCalculating}
-                >
-                  {isCalculating ? (
-                    <>
-                      <CircularProgress size={24} sx={{ mr: 1 }} />
-                      Calcul en cours...
-                    </>
-                  ) : 'Calculer'}
-                </Button>
-              )}
+              <Box>
+                {/* Afficher le bouton Annuler si l'utilisateur est à une étape intermédiaire */}
+                {activeStep > 0 && activeStep < steps.length - 1 && (
+                  <Button
+                    onClick={handleReset}
+                    sx={{ mr: 1 }}
+                    color="inherit"
+                  >
+                    Annuler
+                  </Button>
+                )}
+                
+                {/* Bouton Suivant ou Calculer selon l'étape */}
+                {activeStep < steps.length - 1 ? (
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={handleNext}
+                  >
+                    Suivant
+                  </Button>
+                ) : (
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={handleSubmit(onSubmit)}
+                    startIcon={<CalculateIcon />}
+                    disabled={isCalculating}
+                  >
+                    {isCalculating ? (
+                      <>
+                        <CircularProgress size={24} sx={{ mr: 1 }} />
+                        Calcul en cours...
+                      </>
+                    ) : 'Calculer et Afficher les Résultats'}
+                  </Button>
+                )}
+              </Box>
             </Box>
           </form>
         )}

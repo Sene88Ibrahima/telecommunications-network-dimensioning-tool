@@ -16,6 +16,7 @@ import OpticalLinkCalculator from './components/NetworkForms/OpticalLinkCalculat
 import ProjectsList from './components/Projects/ProjectsList';
 import ProjectDetails from './components/Projects/ProjectDetails';
 import ResultsViewer from './components/Results/ResultsViewer';
+import UmtsResultsViewer from './components/Results/UmtsResultsViewer';
 import ReportGenerator from './components/Reports/ReportGenerator';
 import ReportsList from './components/Reports/ReportsList';
 
@@ -56,6 +57,7 @@ function App() {
             <Route path="calculator/hertzian" element={<HertzianLinkCalculator />} />
             <Route path="calculator/optical" element={<OpticalLinkCalculator />} />
             <Route path="results/:id" element={<ResultsViewer />} />
+            <Route path="results/umts/:id" element={<UmtsResultsViewer />} />
             <Route path="reports" element={<ReportsList />} />
             <Route path="reports/:id" element={<ReportGenerator />} />
           </Route>

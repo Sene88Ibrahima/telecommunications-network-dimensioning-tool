@@ -778,7 +778,14 @@ const ProjectDetails = () => {
                       <Button 
                         size="small" 
                         startIcon={<DescriptionIcon />}
-                        onClick={() => navigate(`/results/${result.id}`)}
+                        onClick={() => {
+                          // Rediriger vers la page de résultats spécifique en fonction du type de réseau
+                          if (project.networkType === 'UMTS') {
+                            navigate(`/results/umts/${result.id}`);
+                          } else {
+                            navigate(`/results/${result.id}`);
+                          }
+                        }}
                       >
                         Voir détails
                       </Button>
