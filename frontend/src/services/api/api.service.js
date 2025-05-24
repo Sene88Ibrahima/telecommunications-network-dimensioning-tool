@@ -16,7 +16,12 @@ export const updateProject = (id, projectData) => API.put(`/projects/${id}`, pro
 export const deleteProject = (id) => API.delete(`/projects/${id}`);
 export const getProjectConfigurations = (id) => API.get(`/projects/${id}/configurations`);
 export const saveProjectConfiguration = (id, configData) => API.post(`/projects/${id}/configurations`, configData);
+export const updateProjectConfiguration = (id, configId, configData) => API.put(`/projects/${id}/configurations/${configId}`, configData);
 export const getProjectResults = (id) => API.get(`/projects/${id}/results`);
+export const getResultById = (id) => API.get(`/results/${id}`);
+export const saveProjectResult = (id, resultData) => API.post(`/projects/${id}/results`, resultData);
+export const deleteResult = (id) => API.delete(`/results/${id}`);
+export const deleteConfiguration = (id) => API.delete(`/configurations/${id}`);
 
 // GSM Calculator API
 export const calculateGsmDimensioning = (params) => API.post('/calculate/gsm', params);

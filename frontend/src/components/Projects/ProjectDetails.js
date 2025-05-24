@@ -25,7 +25,9 @@ import {
   DialogTitle,
   Alert,
   CircularProgress,
-  Tooltip
+  Tooltip,
+  Select,
+  MenuItem
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditIcon from '@mui/icons-material/Edit';
@@ -41,8 +43,108 @@ import {
   getProjectById, 
   updateProject, 
   getProjectConfigurations, 
-  getProjectResults 
+  getProjectResults,
+  deleteResult,
+  deleteConfiguration,
+  deleteProject
 } from '../../services/api/api.service';
+
+// Fonction utilitaire pour formater les dates
+const formatDate = (dateString) => {
+  if (!dateString) return 'Non définie';
+  
+  try {
+    const date = new Date(dateString);
+    
+    // Vérifier si la date est valide
+    if (isNaN(date.getTime())) {
+      return 'Date invalide';
+    }
+    
+    // Formater la date au format local
+    return date.toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch (error) {
+    console.error('Erreur de formatage de date:', error);
+    return 'Erreur de date';
+  }
+};
+
+// Fonction pour formater les paramètres de configuration
+const formatParameters = (parameters, networkType) => {
+  if (!parameters) return 'Paramètres non disponibles';
+
+  try {
+    const paramList = [];
+    
+    // Paramètres communs à tous les types de réseau
+    if (parameters.coverageArea) paramList.push(`Zone de couverture: ${parameters.coverageArea} km²`);
+    
+    // Paramètres spécifiques selon le type de réseau
+    switch (networkType?.toLowerCase()) {
+      case 'gsm':
+        if (parameters.trafficPerSubscriber) paramList.push(`Trafic par abonné: ${parameters.trafficPerSubscriber} Erlang`);
+        if (parameters.subscriberCount) paramList.push(`Nombre d'abonnés: ${parameters.subscriberCount}`);
+        if (parameters.frequency) paramList.push(`Fréquence: ${parameters.frequency} MHz`);
+        if (parameters.btsPower) paramList.push(`Puissance BTS: ${parameters.btsPower} dBm`);
+        break;
+        
+      case 'umts':
+      case '3g':
+        if (parameters.chipRate) paramList.push(`Débit chip: ${parameters.chipRate} Mcps`);
+        if (parameters.processingGain) paramList.push(`Gain de traitement: ${parameters.processingGain} dB`);
+        if (parameters.subscriberCount) paramList.push(`Nombre d'abonnés: ${parameters.subscriberCount}`);
+        break;
+        
+      case 'lte':
+      case '4g':
+        if (parameters.bandwidth) paramList.push(`Bande passante: ${parameters.bandwidth} MHz`);
+        if (parameters.dataRate) paramList.push(`Débit de données: ${parameters.dataRate} Mbps`);
+        if (parameters.subscriberCount) paramList.push(`Nombre d'abonnés: ${parameters.subscriberCount}`);
+        break;
+        
+      case '5g':
+        if (parameters.bandwidth) paramList.push(`Bande passante: ${parameters.bandwidth} MHz`);
+        if (parameters.dataRate) paramList.push(`Débit de données: ${parameters.dataRate} Gbps`);
+        if (parameters.density) paramList.push(`Densité de terminaux: ${parameters.density} /km²`);
+        break;
+        
+      default:
+        // Afficher tous les paramètres disponibles si le type n'est pas reconnu
+        Object.entries(parameters).forEach(([key, value]) => {
+          paramList.push(`${key}: ${value}`);
+        });
+    }
+    
+    return paramList.join('\n');
+  } catch (error) {
+    console.error('Erreur de formatage des paramètres:', error);
+    return 'Erreur de formatage';
+  }
+};
+
+// Fonction pour obtenir l'icône du type de réseau
+const getNetworkTypeIcon = (networkType) => {
+  switch (networkType?.toLowerCase()) {
+    case 'gsm':
+      return <SignalCellularAltIcon />;
+    case 'umts':
+    case '3g':
+      return <WifiIcon />;
+    case 'lte':
+    case '4g':
+      return <SettingsInputAntennaIcon />;
+    case '5g':
+      return <FiberManualRecordIcon />;
+    default:
+      return <SignalCellularAltIcon color="disabled" />;
+  }
+};
 
 function TabPanel(props) {
   const { children, value, index, ...other } = props;
@@ -75,7 +177,11 @@ const ProjectDetails = () => {
   const [error, setError] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [editedProject, setEditedProject] = useState(null);
-  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteResultDialogOpen, setDeleteResultDialogOpen] = useState(false);
+  const [deleteConfigDialogOpen, setDeleteConfigDialogOpen] = useState(false);
+  const [selectedResultId, setSelectedResultId] = useState(null);
+  const [selectedConfigId, setSelectedConfigId] = useState(null);
 
   useEffect(() => {
     fetchProjectData();
@@ -84,105 +190,70 @@ const ProjectDetails = () => {
   const fetchProjectData = async () => {
     try {
       setLoading(true);
+      setError(null);
       
-      // For development, use mock data
-      const mockProject = {
-        id,
-        name: 'Projet GSM Dakar',
-        description: 'Dimensionnement du réseau GSM pour la ville de Dakar',
-        networkType: 'GSM',
-        createdAt: '2025-05-15T10:30:00Z',
-        updatedAt: '2025-05-20T14:45:00Z'
+      // Récupérer les données réelles depuis l'API
+      const projectResponse = await getProjectById(id);
+      console.log('Réponse de l\'API pour le projet:', projectResponse);
+      
+      // Vérifier la structure de la réponse
+      if (!projectResponse || !projectResponse.data) {
+        throw new Error('Réponse API invalide - Pas de données projet');
+      }
+      
+      console.log('Données du projet:', projectResponse.data);
+      
+      // Extraire les données réelles du projet depuis la structure API
+      // La structure est projectResponse.data.data (les données sont dans un sous-objet 'data')
+      const project = projectResponse.data.data || {};
+      console.log('Données réelles du projet:', project);
+      
+      // Normaliser les données du projet pour éviter les erreurs
+      const normalizedProject = {
+        id: project.id || id,
+        name: project.name || 'Projet sans nom',
+        description: project.description || '',
+        networkType: project.networkType || '',
+        createdAt: project.createdAt || null,
+        updatedAt: project.updatedAt || null
       };
       
-      const mockConfigurations = [
-        {
-          id: '1',
-          name: 'Configuration initiale',
-          parameters: {
-            coverageArea: 100,
-            trafficPerSubscriber: 0.02,
-            subscriberCount: 50000,
-            frequency: 900,
-            btsPower: 43,
-            mobileReceptionThreshold: -102,
-            propagationModel: 'OKUMURA_HATA'
-          },
-          projectId: id,
-          createdAt: '2025-05-16T11:30:00Z'
-        },
-        {
-          id: '2',
-          name: 'Configuration optimisée',
-          parameters: {
-            coverageArea: 100,
-            trafficPerSubscriber: 0.025,
-            subscriberCount: 60000,
-            frequency: 900,
-            btsPower: 45,
-            mobileReceptionThreshold: -102,
-            propagationModel: 'OKUMURA_HATA'
-          },
-          projectId: id,
-          createdAt: '2025-05-18T14:45:00Z'
-        }
-      ];
-      
-      const mockResults = [
-        {
-          id: '1',
-          name: 'Résultat initial',
-          calculationResults: {
-            cellRadius: 2.1,
-            btsCount: 28,
-            btsCountForCapacity: 25,
-            finalBtsCount: 28,
-            totalTraffic: 1000,
-            channelsRequired: 1250
-          },
-          projectId: id,
-          configurationId: '1',
-          createdAt: '2025-05-16T11:35:00Z'
-        },
-        {
-          id: '2',
-          name: 'Résultat optimisé',
-          calculationResults: {
-            cellRadius: 2.3,
-            btsCount: 24,
-            btsCountForCapacity: 30,
-            finalBtsCount: 30,
-            totalTraffic: 1500,
-            channelsRequired: 1875
-          },
-          projectId: id,
-          configurationId: '2',
-          createdAt: '2025-05-18T14:50:00Z'
-        }
-      ];
-      
-      setProject(mockProject);
-      setEditedProject(mockProject);
-      setConfigurations(mockConfigurations);
-      setResults(mockResults);
-      
-      // In a real implementation, you would fetch from the API
-      /*
-      const projectResponse = await getProjectById(id);
-      setProject(projectResponse.data.data);
-      setEditedProject(projectResponse.data.data);
-      
+      // Récupérer les configurations du projet
       const configurationsResponse = await getProjectConfigurations(id);
-      setConfigurations(configurationsResponse.data.data || []);
+      console.log('Réponse API pour les configurations:', configurationsResponse);
+      // Même structure que pour les projets: la réponse est dans un sous-objet 'data'
+      const configurations = configurationsResponse?.data?.data || [];
+      console.log('Configurations réelles:', configurations);
       
+      // Récupérer les résultats du projet
       const resultsResponse = await getProjectResults(id);
-      setResults(resultsResponse.data.data || []);
-      */
+      console.log('Réponse API pour les résultats:', resultsResponse);
+      // Même structure que pour les projets: la réponse est dans un sous-objet 'data'
+      const results = resultsResponse?.data?.data || [];
+      console.log('Résultats réels:', results);
       
-      setError(null);
+      // Mettre à jour les états avec les données normalisées
+      setProject(normalizedProject);
+      setEditedProject(normalizedProject); 
+      setConfigurations(configurations);
+      setResults(results);
+      
     } catch (err) {
       console.error('Error fetching project data:', err);
       setError('Impossible de charger les données du projet. Veuillez réessayer plus tard.');
+      
+      // En cas d'erreur, utiliser des valeurs par défaut
+      const defaultProject = {
+        id,
+        name: 'Projet non disponible',
+        description: 'Les données du projet ne peuvent pas être chargées',
+        networkType: 'N/A',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      setProject(defaultProject);
+      setEditedProject(defaultProject);
     } finally {
       setLoading(false);
     }
@@ -202,40 +273,127 @@ const ProjectDetails = () => {
 
   const handleSaveProject = async () => {
     try {
-      // For development, just update the local state
-      setProject(editedProject);
-      setEditMode(false);
+      setError(null);
       
-      // In a real implementation, you would call the API
-      /*
+      // Appeler l'API pour mettre à jour le projet
       const response = await updateProject(id, editedProject);
-      setProject(response.data.data);
-      setEditMode(false);
-      */
+      
+      // Mettre à jour les données locales avec la réponse de l'API
+      if (response && response.data) {
+        setProject(response.data);
+        setEditMode(false);
+        // Afficher un message temporaire de succès
+        alert('Projet mis à jour avec succès!');
+      } else {
+        throw new Error('Réponse API invalide');
+      }
     } catch (err) {
       console.error('Error updating project:', err);
-      setError('Erreur lors de la mise à jour du projet. Veuillez réessayer.');
+      setError(`Erreur lors de la mise à jour du projet: ${err.message}`);
     }
   };
 
   const handleOpenDeleteDialog = () => {
-    setOpenDeleteDialog(true);
+    setDeleteDialogOpen(true);
   };
 
   const handleCloseDeleteDialog = () => {
-    setOpenDeleteDialog(false);
+    setDeleteDialogOpen(false);
   };
 
   const handleDeleteProject = async () => {
     try {
-      // In a real implementation, you would call the API
-      /*
-      await deleteProject(id);
-      */
+      setLoading(true);
+      setError(null);
+      
+      // Appel API pour supprimer le projet
+      const response = await deleteProject(id);
+      console.log('Réponse de suppression du projet:', response);
+      
+      // Fermer le dialogue et rediriger vers la liste des projets
+      handleCloseDeleteDialog();
       navigate('/projects');
+      
     } catch (err) {
-      console.error('Error deleting project:', err);
-      setError('Erreur lors de la suppression du projet. Veuillez réessayer.');
+      console.error('Erreur lors de la suppression du projet:', err);
+      setError(err.response?.data?.message || 'Erreur lors de la suppression du projet');
+      handleCloseDeleteDialog();
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Fonctions pour gérer la suppression des résultats
+  const handleOpenDeleteResultDialog = (resultId) => {
+    setSelectedResultId(resultId);
+    setDeleteResultDialogOpen(true);
+  };
+
+  const handleCloseDeleteResultDialog = () => {
+    setDeleteResultDialogOpen(false);
+    setSelectedResultId(null);
+  };
+
+  const handleDeleteResult = async () => {
+    if (!selectedResultId) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Appel API pour supprimer le résultat
+      const response = await deleteResult(selectedResultId);
+      console.log('Réponse de suppression du résultat:', response);
+      
+      // Mettre à jour la liste des résultats
+      setResults(results.filter(result => result.id !== selectedResultId));
+      
+      // Fermer le dialogue
+      handleCloseDeleteResultDialog();
+      
+    } catch (err) {
+      console.error('Erreur lors de la suppression du résultat:', err);
+      setError(err.response?.data?.message || 'Erreur lors de la suppression du résultat');
+      handleCloseDeleteResultDialog();
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Fonctions pour gérer la suppression des configurations
+  const handleOpenDeleteConfigDialog = (configId) => {
+    setSelectedConfigId(configId);
+    setDeleteConfigDialogOpen(true);
+  };
+
+  const handleCloseDeleteConfigDialog = () => {
+    setDeleteConfigDialogOpen(false);
+    setSelectedConfigId(null);
+  };
+
+  const handleDeleteConfig = async () => {
+    if (!selectedConfigId) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Appel API pour supprimer la configuration
+      const response = await deleteConfiguration(selectedConfigId);
+      console.log('Réponse de suppression de la configuration:', response);
+      
+      // Mettre à jour la liste des configurations
+      setConfigurations(configurations.filter(config => config.id !== selectedConfigId));
+      
+      // Fermer le dialogue
+      handleCloseDeleteConfigDialog();
+      
+    } catch (err) {
+      console.error('Erreur lors de la suppression de la configuration:', err);
+      setError(err.response?.data?.message || 'Erreur lors de la suppression de la configuration');
+      handleCloseDeleteConfigDialog();
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -255,23 +413,48 @@ const ProjectDetails = () => {
   };
 
   const getCalculatorPath = (networkType) => {
-    switch(networkType) {
-      case 'GSM':
-        return '/calculator/gsm';
-      case 'UMTS':
-        return '/calculator/umts';
-      case 'HERTZIEN':
-        return '/calculator/hertzian';
-      case 'OPTIQUE':
-        return '/calculator/optical';
-      default:
-        return '/';
+    // Normaliser le type de réseau pour gérer les variations
+    const type = networkType?.toLowerCase();
+    
+    if (!type) return '/';
+    
+    // Gérer les différentes variantes possibles pour chaque type
+    if (type.includes('gsm') || type.includes('2g')) {
+      return '/calculator/gsm';
+    } else if (type.includes('umts') || type.includes('3g')) {
+      return '/calculator/umts';
+    } else if (type.includes('lte') || type.includes('4g')) {
+      return '/calculator/umts'; // Rediriger vers UMTS si pas de calculateur LTE
+    } else if (type.includes('hertzien') || type.includes('hertz') || type.includes('radio')) {
+      return '/calculator/hertzian';
+    } else if (type.includes('opti') || type.includes('fibre') || type.includes('fiber') || type.includes('liaison')) {
+      return '/calculator/optical';
+    } else {
+      // Afficher un message et rediriger vers la page d'accueil des calculateurs
+      console.warn(`Type de réseau non reconnu: ${networkType}`);
+      return '/';
     }
   };
 
   const formatDate = (dateString) => {
-    const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
-    return new Date(dateString).toLocaleDateString('fr-FR', options);
+    if (!dateString) return 'Non définie';
+    
+    try {
+      const date = new Date(dateString);
+      
+      // Vérifier si la date est valide
+      if (isNaN(date.getTime())) {
+        console.warn('Date invalide:', dateString);
+        return 'Date non disponible';
+      }
+      
+      // Formater la date correctement
+      const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+      return date.toLocaleDateString('fr-FR', options);
+    } catch (error) {
+      console.error('Erreur de formatage de date:', error);
+      return 'Erreur de date';
+    }
   };
 
   const formatParameters = (parameters, networkType) => {
@@ -407,15 +590,50 @@ const ProjectDetails = () => {
             </Grid>
             <Grid item xs={12} md={4}>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Typography variant="body2" color="text.secondary">
                     Type de réseau:
                   </Typography>
-                  <Chip 
-                    icon={getNetworkTypeIcon(project.networkType)} 
-                    label={project.networkType} 
-                    size="small" 
-                  />
+                  {editMode ? (
+                    <Select
+                      value={editedProject.networkType || ''}
+                      onChange={(e) => setEditedProject({ ...editedProject, networkType: e.target.value })}
+                      size="small"
+                      sx={{ minWidth: 120 }}
+                    >
+                      <MenuItem value="GSM">
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <SignalCellularAltIcon fontSize="small" sx={{ mr: 1 }} />
+                          GSM
+                        </Box>
+                      </MenuItem>
+                      <MenuItem value="UMTS">
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <WifiIcon fontSize="small" sx={{ mr: 1 }} />
+                          UMTS
+                        </Box>
+                      </MenuItem>
+                      <MenuItem value="LTE">
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <SettingsInputAntennaIcon fontSize="small" sx={{ mr: 1 }} />
+                          LTE
+                        </Box>
+                      </MenuItem>
+                      <MenuItem value="5G">
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <FiberManualRecordIcon fontSize="small" sx={{ mr: 1 }} />
+                          5G
+                        </Box>
+                      </MenuItem>
+                    </Select>
+                  ) : (
+                    <Chip 
+                      icon={getNetworkTypeIcon(project?.networkType || 'GSM')} 
+                      label={project?.networkType || 'Non défini'} 
+                      size="small" 
+                      color={project?.networkType ? 'primary' : 'default'}
+                    />
+                  )}
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                   <Typography variant="body2" color="text.secondary">
@@ -442,7 +660,7 @@ const ProjectDetails = () => {
               variant="contained"
               color="primary"
               startIcon={<CalculateIcon />}
-              onClick={() => navigate(getCalculatorPath(project.networkType))}
+              onClick={() => navigate(getCalculatorPath(project.networkType), { state: { projectId: project.id } })}
             >
               Ouvrir le calculateur {project.networkType}
             </Button>
@@ -483,7 +701,7 @@ const ProjectDetails = () => {
                       <Button 
                         size="small" 
                         startIcon={<CalculateIcon />}
-                        onClick={() => navigate(getCalculatorPath(project.networkType), { state: { configurationId: config.id } })}
+                        onClick={() => navigate(getCalculatorPath(project.networkType), { state: { configurationId: config.id, projectId: project.id } })}
                       >
                         Utiliser
                       </Button>
@@ -491,6 +709,7 @@ const ProjectDetails = () => {
                         size="small" 
                         color="error" 
                         startIcon={<DeleteIcon />}
+                        onClick={() => handleOpenDeleteConfigDialog(config.id)}
                       >
                         Supprimer
                       </Button>
@@ -507,7 +726,7 @@ const ProjectDetails = () => {
               <Button 
                 variant="contained" 
                 startIcon={<CalculateIcon />}
-                onClick={() => navigate(getCalculatorPath(project.networkType))}
+                onClick={() => navigate(getCalculatorPath(project.networkType), { state: { projectId: project.id } })}
                 sx={{ mt: 2 }}
               >
                 Créer une configuration
@@ -567,6 +786,7 @@ const ProjectDetails = () => {
                         size="small" 
                         color="error" 
                         startIcon={<DeleteIcon />}
+                        onClick={() => handleOpenDeleteResultDialog(result.id)}
                       >
                         Supprimer
                       </Button>
@@ -595,7 +815,7 @@ const ProjectDetails = () => {
 
       {/* Delete Confirmation Dialog */}
       <Dialog
-        open={openDeleteDialog}
+        open={deleteDialogOpen} 
         onClose={handleCloseDeleteDialog}
       >
         <DialogTitle>Confirmer la suppression</DialogTitle>
@@ -608,6 +828,40 @@ const ProjectDetails = () => {
         <DialogActions>
           <Button onClick={handleCloseDeleteDialog}>Annuler</Button>
           <Button onClick={handleDeleteProject} color="error" variant="contained">
+            Supprimer
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
+      {/* Dialogue de confirmation pour supprimer un résultat */}
+      <Dialog open={deleteResultDialogOpen} onClose={handleCloseDeleteResultDialog}>
+        <DialogTitle>Confirmer la suppression</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Êtes-vous sûr de vouloir supprimer ce résultat ? 
+            Cette action est irréversible.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDeleteResultDialog}>Annuler</Button>
+          <Button onClick={handleDeleteResult} color="error" variant="contained">
+            Supprimer
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
+      {/* Dialogue de confirmation pour supprimer une configuration */}
+      <Dialog open={deleteConfigDialogOpen} onClose={handleCloseDeleteConfigDialog}>
+        <DialogTitle>Confirmer la suppression</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Êtes-vous sûr de vouloir supprimer cette configuration ? 
+            Cette action est irréversible.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDeleteConfigDialog}>Annuler</Button>
+          <Button onClick={handleDeleteConfig} color="error" variant="contained">
             Supprimer
           </Button>
         </DialogActions>

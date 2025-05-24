@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
   Grid,
@@ -26,24 +27,37 @@ import {
   TableCell,
   TableContainer,
   TableHead,
-  TableRow
+  TableRow,
+  Snackbar
 } from '@mui/material';
 import InfoIcon from '@mui/icons-material/Info';
 import SaveIcon from '@mui/icons-material/Save';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CalculateIcon from '@mui/icons-material/Calculate';
-import { calculateUmtsDimensioning } from '../../services/api/api.service';
+import { 
+  calculateUmtsDimensioning, 
+  saveProjectConfiguration, 
+  saveProjectResult 
+} from '../../services/api/api.service';
 import ResultsDisplay from '../Results/ResultsDisplay';
 
 // Step titles
 const steps = ['Services', 'Paramètres radio', 'Paramètres de propagation'];
 
 const UmtsCalculator = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const projectId = location.state?.projectId;
+  const configurationId = location.state?.configurationId;
+  
   const [activeStep, setActiveStep] = useState(0);
   const [isCalculating, setIsCalculating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [calculationResult, setCalculationResult] = useState(null);
   const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [showSnackbar, setShowSnackbar] = useState(false);
   
   const { control, handleSubmit, formState: { errors }, watch } = useForm({
     defaultValues: {
@@ -104,6 +118,105 @@ const UmtsCalculator = () => {
       setError(err.response?.data?.message || 'Erreur lors du calcul. Veuillez vérifier vos paramètres.');
     } finally {
       setIsCalculating(false);
+    }
+  };
+  
+  const handleSaveResult = async () => {
+    if (!calculationResult) {
+      setError('Aucun résultat à sauvegarder');
+      return;
+    }
+    
+    try {
+      setIsSaving(true);
+      setError(null);
+      
+      const formValues = watch();
+      
+      // Si pas de projectId, demander à l'utilisateur de créer un projet
+      if (!projectId) {
+        setSuccessMessage('Pour sauvegarder les résultats, veuillez d\'abord créer un projet.');
+        setShowSnackbar(true);
+        // Utiliser un chemin différent pour éviter la confusion avec l'ID "new"
+        setTimeout(() => {
+          navigate('/projects', { 
+            state: { 
+              createNew: true,
+              calculationType: 'UMTS', 
+              calculationData: formValues 
+            } 
+          });
+        }, 2000);
+        return;
+      }
+      
+      // Vérifier que l'ID du projet est valide (pas 'new' ou une chaîne vide)
+      if (projectId === 'new' || projectId === '') {
+        setError('Identifiant de projet invalide. Veuillez créer un nouveau projet.');
+        return;
+      }
+      
+      // Sauvegarder la configuration si elle n'existe pas déjà
+      let configId = configurationId;
+      if (!configId) {
+        const configData = {
+          name: `Configuration UMTS ${new Date().toLocaleDateString()}`,
+          parameters: formValues,
+          projectId: projectId
+        };
+        
+        const configResponse = await saveProjectConfiguration(projectId, configData);
+        console.log('Réponse de configuration:', configResponse);
+        
+        // Extraire l'ID de la bonne structure de réponse (configResponse.data.data.id)
+        if (configResponse?.data?.data?.id) {
+          configId = configResponse.data.data.id;
+        } else if (configResponse?.data?.id) {
+          configId = configResponse.data.id;
+        } else {
+          throw new Error('Impossible de récupérer l\'ID de configuration');
+        }
+      }
+      
+      // Sauvegarder les résultats
+      const resultData = {
+        name: `Résultat UMTS ${new Date().toLocaleDateString()}`,
+        calculationResults: calculationResult,
+        projectId: projectId,
+        configurationId: configId
+      };
+      
+      const resultResponse = await saveProjectResult(projectId, resultData);
+      console.log('Réponse de sauvegarde de résultat:', resultResponse);
+      
+      // Extraire l'ID du résultat si disponible
+      let resultId = null;
+      if (resultResponse?.data?.data?.id) {
+        resultId = resultResponse.data.data.id;
+      } else if (resultResponse?.data?.id) {
+        resultId = resultResponse.data.id;
+      }
+      
+      // Afficher un message de succès
+      setSuccessMessage('Résultats sauvegardés avec succès!');
+      setShowSnackbar(true);
+      
+      // Rediriger vers le projet après quelques secondes
+      setTimeout(() => {
+        // S'assurer que l'ID est valide avant de naviguer
+        if (projectId && projectId !== 'new' && projectId !== '') {
+          navigate(`/projects/${projectId}`, { replace: true });
+        } else {
+          // En cas d'ID invalide, aller à la liste des projets
+          navigate('/projects', { replace: true });
+        }
+      }, 2000);
+      
+    } catch (err) {
+      console.error('Erreur lors de la sauvegarde:', err);
+      setError(err.response?.data?.message || 'Erreur lors de la sauvegarde des résultats.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -510,8 +623,15 @@ const UmtsCalculator = () => {
                     variant="contained" 
                     startIcon={<SaveIcon />}
                     color="primary"
+                    onClick={handleSaveResult}
+                    disabled={isSaving}
                   >
-                    Sauvegarder les résultats
+                    {isSaving ? (
+                      <>
+                        <CircularProgress size={24} sx={{ mr: 1 }} />
+                        Sauvegarde...
+                      </>
+                    ) : 'Sauvegarder les résultats'}
                   </Button>
                 </Box>
               </Box>
@@ -596,6 +716,14 @@ const UmtsCalculator = () => {
           </Typography>
         </CardContent>
       </Card>
+      
+      {/* Snackbar pour les notifications de succès */}
+      <Snackbar
+        open={showSnackbar}
+        autoHideDuration={6000}
+        onClose={() => setShowSnackbar(false)}
+        message={successMessage}
+      />
     </Box>
   );
 };

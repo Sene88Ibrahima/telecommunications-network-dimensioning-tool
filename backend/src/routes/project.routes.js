@@ -52,10 +52,31 @@ router.post('/:id/configurations',
   projectController.saveProjectConfiguration
 );
 
+// Update an existing configuration
+router.put('/:id/configurations/:configId',
+  [
+    param('id').isUUID().withMessage('ID de projet invalide'),
+    param('configId').isUUID().withMessage('ID de configuration invalide'),
+    body('name').notEmpty().withMessage('Le nom de la configuration est requis'),
+    body('parameters').isObject().withMessage('Les paramètres doivent être un objet JSON')
+  ],
+  projectController.updateProjectConfiguration
+);
+
 // Get results for a project
 router.get('/:id/results',
   param('id').isUUID().withMessage('ID de projet invalide'),
   projectController.getProjectResults
+);
+
+// Save a new result to a project
+router.post('/:id/results',
+  [
+    param('id').isUUID().withMessage('ID de projet invalide'),
+    body('name').notEmpty().withMessage('Le nom du résultat est requis'),
+    body('calculationResults').isObject().withMessage('Les résultats de calcul doivent être un objet JSON')
+  ],
+  projectController.saveProjectResult
 );
 
 module.exports = router;

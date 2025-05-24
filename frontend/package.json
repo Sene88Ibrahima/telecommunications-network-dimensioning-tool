@@ -10,6 +10,7 @@
     "axios": "^1.4.0",
     "chart.js": "^4.4.9",
     "docx": "^9.5.0",
+    "file-saver": "^2.0.5",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.4",
     "leaflet": "^1.9.4",

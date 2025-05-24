@@ -3,6 +3,8 @@ const router = express.Router();
 
 // Import route modules
 const projectRoutes = require('./project.routes');
+const resultRoutes = require('./result.routes');
+const configurationRoutes = require('./configuration.routes');
 const gsmCalculatorRoutes = require('./gsm-calculator.routes');
 const umtsCalculatorRoutes = require('./umts-calculator.routes');
 const hertzianLinkRoutes = require('./hertzian-link.routes');
@@ -10,6 +12,8 @@ const opticalLinkRoutes = require('./optical-link.routes');
 
 // Define API routes
 router.use('/projects', projectRoutes);
+router.use('/results', resultRoutes);
+router.use('/configurations', configurationRoutes);
 router.use('/calculate/gsm', gsmCalculatorRoutes);
 router.use('/calculate/umts', umtsCalculatorRoutes);
 router.use('/calculate/hertzian', hertzianLinkRoutes);

@@ -44,9 +44,18 @@ exports.calculateGsmDimensioning = async (req, res) => {
     // Calculate traffic requirements
     const totalTraffic = trafficPerSubscriber * subscriberCount;
     
-    // Assuming each BTS can handle a certain amount of traffic
-    // Based on standard GSM configuration (typical 3 sectors with multiple TRX)
-    const trafficPerBTS = 105; // Erlang (example value, depends on configuration)
+    // Calcul de la capacité par BTS en fonction des paramètres d'entrée
+    // On prend en compte le nombre de secteurs et de TRX par secteur (paramètres configurables)
+    // Par défaut: 3 secteurs, 4 TRX par secteur, 8 timeslots par TRX, efficacité de 0.9 Erlang par timeslot
+    
+    // Ces paramètres pourraient être passés dans la requête à l'avenir
+    const sectors = req.body.sectors || 3;
+    const trxPerSector = req.body.trxPerSector || 4;
+    const timeslotsPerTRX = 8; // Standard GSM
+    const erlangPerTimeslot = 0.9; // Efficacité théorique avec 1% de blocage
+    
+    // Calcul de la capacité totale par BTS
+    const trafficPerBTS = sectors * trxPerSector * timeslotsPerTRX * erlangPerTimeslot;
     
     // Calculate BTS needed for capacity
     const btsCountForCapacity = Math.ceil(totalTraffic / trafficPerBTS);
@@ -68,7 +77,20 @@ exports.calculateGsmDimensioning = async (req, res) => {
       channelsRequired,
       coverageArea,
       trafficPerSubscriber,
-      subscriberCount
+      subscriberCount,
+      // Ajouter tous les paramètres d'entrée pour l'affichage
+      frequency,
+      btsPower,
+      mobileReceptionThreshold,
+      propagationModel,
+      // Ajouter les paramètres de capacité pour une meilleure compréhension
+      capacityParams: {
+        sectors,
+        trxPerSector,
+        timeslotsPerTRX,
+        erlangPerTimeslot,
+        trafficPerBTS
+      }
     };
 
     // Save result to database if requested

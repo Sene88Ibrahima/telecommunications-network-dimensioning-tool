@@ -30,11 +30,8 @@ Chart.register(...registerables);
  */
 const ResultsDisplay = ({ result, type }) => {
   if (!result) {
-    return <Typography variant="body1">Aucun résultat à afficher</Typography>;
+    return <Typography>Aucun résultat à afficher</Typography>;
   }
-  
-  // Log the result object to diagnose any issues
-  console.log('Full result object:', result);
 
   // Render appropriate results based on network type
   const renderResults = () => {
@@ -319,11 +316,7 @@ const ResultsDisplay = ({ result, type }) => {
                       </TableRow>
                       <TableRow>
                         <TableCell component="th" scope="row">Modèle de propagation</TableCell>
-                        <TableCell align="right">
-                          {(result.parameters?.propagationModel === 'OKUMURA_HATA' || gsmData.propagationModel === 'OKUMURA_HATA') 
-                            ? 'Okumura-Hata' 
-                            : 'COST-231'}
-                        </TableCell>
+                        <TableCell align="right">{result.parameters?.propagationModel === 'OKUMURA_HATA' ? 'Okumura-Hata' : 'COST-231'}</TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>

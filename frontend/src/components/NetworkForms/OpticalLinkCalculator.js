@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Box,
   Grid,
@@ -20,22 +21,35 @@ import {
   Alert,
   CircularProgress,
   Tooltip,
-  IconButton
+  IconButton,
+  Snackbar
 } from '@mui/material';
 import InfoIcon from '@mui/icons-material/Info';
 import SaveIcon from '@mui/icons-material/Save';
 import CalculateIcon from '@mui/icons-material/Calculate';
-import { calculateOpticalLinkBudget } from '../../services/api/api.service';
+import { 
+  calculateOpticalLinkBudget,
+  saveProjectConfiguration,
+  saveProjectResult 
+} from '../../services/api/api.service';
 import ResultsDisplay from '../Results/ResultsDisplay';
 
 // Step titles
 const steps = ['Type de fibre', 'Paramètres de transmission', 'Connexions'];
 
 const OpticalLinkCalculator = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const projectId = location.state?.projectId;
+  const configurationId = location.state?.configurationId;
+  
   const [activeStep, setActiveStep] = useState(0);
   const [isCalculating, setIsCalculating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [calculationResult, setCalculationResult] = useState(null);
   const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [showSnackbar, setShowSnackbar] = useState(false);
   
   const { control, handleSubmit, formState: { errors }, watch } = useForm({
     defaultValues: {
@@ -63,6 +77,106 @@ const OpticalLinkCalculator = () => {
     setError(null);
   };
 
+  // Fonction pour sauvegarder les résultats
+  const handleSaveResult = async () => {
+    if (!calculationResult) {
+      setError('Aucun résultat à sauvegarder');
+      return;
+    }
+    
+    try {
+      setIsSaving(true);
+      setError(null);
+      
+      const formValues = watch();
+      
+      // Si pas de projectId, demander à l'utilisateur de créer un projet
+      if (!projectId) {
+        setSuccessMessage('Pour sauvegarder les résultats, veuillez d\'abord créer un projet.');
+        setShowSnackbar(true);
+        // Utiliser un chemin différent pour éviter la confusion avec l'ID "new"
+        setTimeout(() => {
+          navigate('/projects', { 
+            state: { 
+              createNew: true,
+              calculationType: 'OPTICAL', 
+              calculationData: formValues 
+            } 
+          });
+        }, 2000);
+        return;
+      }
+      
+      // Vérifier que l'ID du projet est valide (pas 'new' ou une chaîne vide)
+      if (projectId === 'new' || projectId === '') {
+        setError('Identifiant de projet invalide. Veuillez créer un nouveau projet.');
+        return;
+      }
+      
+      // Sauvegarder la configuration si elle n'existe pas déjà
+      let configId = configurationId;
+      if (!configId) {
+        const configData = {
+          name: `Configuration Optique ${new Date().toLocaleDateString()}`,
+          parameters: formValues,
+          projectId: projectId
+        };
+        
+        const configResponse = await saveProjectConfiguration(projectId, configData);
+        console.log('Réponse de configuration:', configResponse);
+        
+        // Extraire l'ID de la bonne structure de réponse (configResponse.data.data.id)
+        if (configResponse?.data?.data?.id) {
+          configId = configResponse.data.data.id;
+        } else if (configResponse?.data?.id) {
+          configId = configResponse.data.id;
+        } else {
+          throw new Error('Impossible de récupérer l\'ID de configuration');
+        }
+      }
+      
+      // Sauvegarder les résultats
+      const resultData = {
+        name: `Résultat Optique ${new Date().toLocaleDateString()}`,
+        calculationResults: calculationResult,
+        projectId: projectId,
+        configurationId: configId
+      };
+      
+      const resultResponse = await saveProjectResult(projectId, resultData);
+      console.log('Réponse de sauvegarde de résultat:', resultResponse);
+      
+      // Extraire l'ID du résultat si disponible
+      let resultId = null;
+      if (resultResponse?.data?.data?.id) {
+        resultId = resultResponse.data.data.id;
+      } else if (resultResponse?.data?.id) {
+        resultId = resultResponse.data.id;
+      }
+      
+      // Afficher un message de succès
+      setSuccessMessage('Résultats sauvegardés avec succès!');
+      setShowSnackbar(true);
+      
+      // Rediriger vers le projet après quelques secondes
+      setTimeout(() => {
+        // S'assurer que l'ID est valide avant de naviguer
+        if (projectId && projectId !== 'new' && projectId !== '') {
+          navigate(`/projects/${projectId}`, { replace: true });
+        } else {
+          // En cas d'ID invalide, aller à la liste des projets
+          navigate('/projects', { replace: true });
+        }
+      }, 2000);
+      
+    } catch (err) {
+      console.error('Erreur lors de la sauvegarde:', err);
+      setError(err.response?.data?.message || 'Erreur lors de la sauvegarde des résultats.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+  
   const onSubmit = async (data) => {
     try {
       setIsCalculating(true);
@@ -99,43 +213,7 @@ const OpticalLinkCalculator = () => {
                       <MenuItem value="MONOMODE">Monomode (SMF)</MenuItem>
                       <MenuItem value="MULTIMODE">Multimode (MMF)</MenuItem>
                     </Select>
-                    {errors.fiberType && (
-                      <Typography variant="caption" color="error">
-                        {errors.fiberType.message}
-                      </Typography>
-                    )}
                   </FormControl>
-                )}
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <Controller
-                name="linkLength"
-                control={control}
-                rules={{ 
-                  required: 'Ce champ est requis', 
-                  min: { value: 0.1, message: 'La longueur minimale est 0.1 km' },
-                  max: { value: 200, message: 'La longueur maximale est 200 km' }
-                }}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="Longueur de liaison (km)"
-                    type="number"
-                    fullWidth
-                    variant="outlined"
-                    error={!!errors.linkLength}
-                    helperText={errors.linkLength?.message}
-                    InputProps={{
-                      endAdornment: (
-                        <Tooltip title="Distance totale de la liaison optique">
-                          <IconButton size="small">
-                            <InfoIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )
-                    }}
-                  />
                 )}
               />
             </Grid>
@@ -159,7 +237,39 @@ const OpticalLinkCalculator = () => {
                     helperText={errors.wavelength?.message}
                     InputProps={{
                       endAdornment: (
-                        <Tooltip title="Fenêtres typiques: 850nm, 1310nm, 1550nm">
+                        <Tooltip title="Longueur d'onde en nanomètres (850, 1310, 1550 nm typiques)">
+                          <IconButton size="small">
+                            <InfoIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )
+                    }}
+                  />
+                )}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <Controller
+                name="linkLength"
+                control={control}
+                rules={{ 
+                  required: 'Ce champ est requis',
+                  min: { value: 0.1, message: 'Longueur minimale 0.1 km' },
+                  max: { value: 100, message: 'Longueur maximale 100 km' }
+                }}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label="Longueur de la liaison (km)"
+                    type="number"
+                    inputProps={{ step: 0.1 }}
+                    fullWidth
+                    variant="outlined"
+                    error={!!errors.linkLength}
+                    helperText={errors.linkLength?.message}
+                    InputProps={{
+                      endAdornment: (
+                        <Tooltip title="Distance totale de la liaison en kilomètres">
                           <IconButton size="small">
                             <InfoIcon fontSize="small" />
                           </IconButton>
@@ -181,7 +291,7 @@ const OpticalLinkCalculator = () => {
                 control={control}
                 rules={{ 
                   required: 'Ce champ est requis',
-                  min: { value: -20, message: 'Puissance minimale -20 dBm' },
+                  min: { value: -10, message: 'Puissance minimale -10 dBm' },
                   max: { value: 20, message: 'Puissance maximale 20 dBm' }
                 }}
                 render={({ field }) => (
@@ -195,7 +305,7 @@ const OpticalLinkCalculator = () => {
                     helperText={errors.transmitterPower?.message}
                     InputProps={{
                       endAdornment: (
-                        <Tooltip title="Puissance optique en sortie de l'émetteur">
+                        <Tooltip title="Puissance du transmetteur optique en dBm">
                           <IconButton size="small">
                             <InfoIcon fontSize="small" />
                           </IconButton>
@@ -358,8 +468,15 @@ const OpticalLinkCalculator = () => {
                     variant="contained" 
                     startIcon={<SaveIcon />}
                     color="primary"
+                    onClick={handleSaveResult}
+                    disabled={isSaving}
                   >
-                    Sauvegarder les résultats
+                    {isSaving ? (
+                      <>
+                        <CircularProgress size={24} sx={{ mr: 1 }} />
+                        Sauvegarde...
+                      </>
+                    ) : 'Sauvegarder les résultats'}
                   </Button>
                 </Box>
               </Box>
@@ -449,6 +566,14 @@ const OpticalLinkCalculator = () => {
           </Typography>
         </CardContent>
       </Card>
+      
+      {/* Snackbar pour les messages de succès */}
+      <Snackbar
+        open={showSnackbar}
+        autoHideDuration={6000}
+        onClose={() => setShowSnackbar(false)}
+        message={successMessage}
+      />
     </Box>
   );
 };
