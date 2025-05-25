@@ -19,6 +19,7 @@ import { Bar, Pie, Line } from 'react-chartjs-2';
 import { Chart, registerables } from 'chart.js';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import WarningIcon from '@mui/icons-material/Warning';
+import OpticalResultsDisplay from './OpticalResultsDisplay';
 
 // Register ChartJS components
 Chart.register(...registerables);
@@ -930,12 +931,19 @@ const ResultsDisplay = ({ result, type }) => {
   // Optical results display
   const renderOpticalResults = () => {
     console.log('Optical result data:', result);
-    return (
-      <Alert severity="info">
-        <Typography variant="h6">Résultats Optique</Typography>
-        <Typography variant="body2">L'affichage détaillé pour les résultats de calcul Optique sera disponible prochainement.</Typography>
-      </Alert>
-    );
+    
+    // Vérifier si nous avons des données de calcul
+    if (!result.calculationResults) {
+      return (
+        <Alert severity="warning">
+          <Typography variant="h6">Données de calcul manquantes</Typography>
+          <Typography variant="body2">Les résultats détaillés ne sont pas disponibles pour ce calcul.</Typography>
+        </Alert>
+      );
+    }
+    
+    // Utiliser le composant spécialisé OpticalResultsDisplay
+    return <OpticalResultsDisplay result={result.calculationResults} />;
   };
 
   return (
