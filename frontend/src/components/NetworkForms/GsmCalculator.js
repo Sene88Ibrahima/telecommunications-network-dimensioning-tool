@@ -780,8 +780,18 @@ const GsmCalculator = () => {
             <Typography variant="body2" sx={{ fontFamily: 'monospace', my: 1 }}>
               L = 69.55 + 26.16log(f) - 13.82log(hb) - a(hm) + [44.9 - 6.55log(hb)]log(d)
             </Typography>
-            <Typography variant="body2">
+            <Typography variant="body2" sx={{ mb: 2 }}>
               où f est la fréquence (MHz), hb la hauteur d'antenne BTS (m), hm la hauteur d'antenne mobile (m), et d la distance (km).
+            </Typography>
+
+            <Typography variant="subtitle2" sx={{ mt: 2 }}>
+              Modèle COST-231 (extension de Hata pour fréquences 1500-2000 MHz) :
+            </Typography>
+            <Typography variant="body2" sx={{ fontFamily: 'monospace', my: 1 }}>
+              L = 46.3 + 33.9log(f) - 13.82log(hb) - a(hm) + [44.9 - 6.55log(hb)]log(d) + C
+            </Typography>
+            <Typography variant="body2">
+              où C = 0 pour villes moyennes et zones suburbaines, C = 3 pour zones métropolitaines.
             </Typography>
           </Typography>
         </CardContent>
