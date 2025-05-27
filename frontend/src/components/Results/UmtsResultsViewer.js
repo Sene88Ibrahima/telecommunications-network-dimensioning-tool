@@ -1,15 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Container, Paper, Typography, Grid, Box, CircularProgress, 
-  Divider, Card, CardContent, Alert
+  Divider, Card, CardContent, Alert, Button, Snackbar
 } from '@mui/material';
 import { useParams, useNavigate } from 'react-router-dom';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import TableViewIcon from '@mui/icons-material/TableView';
 
 // Import the API service
 import { getResultById } from '../../services/api/api.service';
 
 // Import specialized UMTS results display component
 import UmtsResultsDisplay from './UmtsResultsDisplay';
+
+// Import des services d'exportation
+import {
+  exportToPdf,
+  exportToExcel,
+  prepareUmtsDataForExcel
+} from '../../services/export/export.service';
 
 /**
  * Component for viewing saved UMTS calculation results
@@ -23,6 +32,10 @@ const UmtsResultsViewer = () => {
   const [loading, setLoading] = useState(true);
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
+  const [notification, setNotification] = useState({ open: false, message: '', severity: 'info' });
+  
+  // Référence pour le conteneur des résultats (utilisé pour l'export PDF)
+  const resultsContainerRef = useRef(null);
 
   // Fetch the result data from the API
   useEffect(() => {
@@ -92,14 +105,71 @@ const UmtsResultsViewer = () => {
       </Container>
     );
   }
+  
+  // Fonction pour exporter en PDF
+  const handleExportPdf = () => {
+    try {
+      exportToPdf(
+        'umts-results-container', 
+        `umts_results_${results?.id || new Date().toISOString().split('T')[0]}`,
+        results?.name || 'Résultats UMTS'
+      );
+      setNotification({ open: true, message: 'Export PDF réussi !', severity: 'success' });
+    } catch (error) {
+      console.error('Erreur lors de l\'export PDF:', error);
+      setNotification({ open: true, message: 'Erreur lors de l\'export PDF', severity: 'error' });
+    }
+  };
+
+  // Fonction pour exporter en Excel
+  const handleExportExcel = () => {
+    try {
+      const data = prepareUmtsDataForExcel(results);
+      const filename = `umts_results_${results?.id || new Date().toISOString().split('T')[0]}`;
+      
+      exportToExcel(data, filename);
+      setNotification({ open: true, message: 'Export Excel réussi !', severity: 'success' });
+    } catch (error) {
+      console.error('Erreur lors de l\'export Excel:', error);
+      setNotification({ open: true, message: 'Erreur lors de l\'export Excel', severity: 'error' });
+    }
+  };
+  
+  // Fermer la notification
+  const handleCloseNotification = () => {
+    setNotification({ ...notification, open: false });
+  };
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4 }}>
       <Paper elevation={2} sx={{ p: 4 }}>
-        <Box sx={{ mb: 4 }}>
+        {/* Titre et boutons d'exportation */}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h4" gutterBottom>
             {results?.name || 'Résultat UMTS'}
           </Typography>
+          <Box>
+            <Button 
+              variant="contained" 
+              color="primary" 
+              startIcon={<PictureAsPdfIcon />} 
+              onClick={handleExportPdf}
+              sx={{ mr: 1 }}
+            >
+              PDF
+            </Button>
+            <Button 
+              variant="contained" 
+              color="secondary" 
+              startIcon={<TableViewIcon />} 
+              onClick={handleExportExcel}
+            >
+              Excel
+            </Button>
+          </Box>
+        </Box>
+        
+        <Box sx={{ mb: 4 }}>
           <Typography variant="subtitle1" color="text.secondary">
             Projet: {results?.project?.name || 'Non spécifié'}
           </Typography>
@@ -126,10 +196,18 @@ const UmtsResultsViewer = () => {
         </Grid>
 
         {/* Results display */}
-        <Box sx={{ mt: 2 }}>
+        <Box sx={{ mt: 2 }} id="umts-results-container" ref={resultsContainerRef}>
           <UmtsResultsDisplay result={results} />
         </Box>
       </Paper>
+      
+      {/* Notifications */}
+      <Snackbar
+        open={notification.open}
+        autoHideDuration={5000}
+        onClose={handleCloseNotification}
+        message={notification.message}
+      />
     </Container>
   );
 };

@@ -191,7 +191,26 @@ const OpticalLinkCalculator = () => {
       
       // Appel API pour le calcul
       const response = await calculateOpticalLinkBudget(data);
-      setCalculationResult(response.data.data);
+      
+      // S'assurer que les paramètres originaux du formulaire sont préservés dans les résultats
+      const results = response.data.data;
+      
+      // Préserver explicitement tous les paramètres importants du formulaire
+      // qui pourraient ne pas être retournés par l'API
+      if (results) {
+        // Stocker la marge de sécurité
+        results.safetyMargin = data.safetyMargin;
+        
+        // Stocker également une copie des paramètres originaux
+        // pour s'assurer qu'ils sont disponibles même après sauvegarde
+        results.originalParameters = {
+          ...data
+        };
+        
+        console.log('Résultats enrichis avec les paramètres du formulaire:', results);
+      }
+      
+      setCalculationResult(results);
       
       // Aller à l'étape des résultats (étape après la dernière étape du formulaire)
       setActiveStep(steps.length);

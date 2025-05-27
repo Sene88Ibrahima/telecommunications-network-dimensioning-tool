@@ -1,17 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Container, Paper, Typography, Grid, Box, CircularProgress, 
-  Divider, Card, CardContent, Alert, Button
+  Divider, Card, CardContent, Alert, Button, Snackbar
 } from '@mui/material';
 import { useParams, useNavigate } from 'react-router-dom';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CalculateIcon from '@mui/icons-material/Calculate';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import TableViewIcon from '@mui/icons-material/TableView';
 
 // Import the API service
 import { getResultById } from '../../services/api/api.service';
 
 // Import specialized Hertzian results display component
 import HertzianResultsDisplay from './HertzianResultsDisplay';
+
+// Import des services d'exportation
+import {
+  exportToPdf,
+  exportToExcel,
+  prepareHertzianDataForExcel
+} from '../../services/export/export.service';
 
 /**
  * Component for viewing saved Hertzian link budget calculation results
@@ -25,6 +34,10 @@ const HertzianResultsViewer = () => {
   const [loading, setLoading] = useState(true);
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
+  const [notification, setNotification] = useState({ open: false, message: '', severity: 'info' });
+  
+  // Référence pour le conteneur des résultats (utilisé pour l'export PDF)
+  const resultsContainerRef = useRef(null);
 
   // Fetch the result data from the API
   useEffect(() => {
@@ -88,6 +101,40 @@ const HertzianResultsViewer = () => {
       navigate('/calculator/hertzian');
     }
   };
+  
+  // Fonction pour exporter en PDF
+  const handleExportPdf = () => {
+    try {
+      exportToPdf(
+        'hertzian-results-container', 
+        `hertzian_results_${results?.id || new Date().toISOString().split('T')[0]}`,
+        results?.name || 'Bilan de Liaison Hertzienne'
+      );
+      setNotification({ open: true, message: 'Export PDF réussi !', severity: 'success' });
+    } catch (error) {
+      console.error('Erreur lors de l\'export PDF:', error);
+      setNotification({ open: true, message: 'Erreur lors de l\'export PDF', severity: 'error' });
+    }
+  };
+
+  // Fonction pour exporter en Excel
+  const handleExportExcel = () => {
+    try {
+      const data = prepareHertzianDataForExcel(results);
+      const filename = `hertzian_results_${results?.id || new Date().toISOString().split('T')[0]}`;
+      
+      exportToExcel(data, filename);
+      setNotification({ open: true, message: 'Export Excel réussi !', severity: 'success' });
+    } catch (error) {
+      console.error('Erreur lors de l\'export Excel:', error);
+      setNotification({ open: true, message: 'Erreur lors de l\'export Excel', severity: 'error' });
+    }
+  };
+  
+  // Fermer la notification
+  const handleCloseNotification = () => {
+    setNotification({ ...notification, open: false });
+  };
 
   if (loading) {
     return (
@@ -123,21 +170,43 @@ const HertzianResultsViewer = () => {
   return (
     <Container maxWidth="lg" sx={{ mt: 4 }}>
       <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between' }}>
-        <Button
-          startIcon={<ArrowBackIcon />}
-          onClick={handleBackToProject}
-          variant="outlined"
-        >
-          Retour au projet
-        </Button>
-        <Button
-          startIcon={<CalculateIcon />}
-          onClick={handleRecalculate}
-          variant="contained"
-          color="primary"
-        >
-          Nouveau calcul
-        </Button>
+        <Box>
+          <Button
+            startIcon={<ArrowBackIcon />}
+            onClick={handleBackToProject}
+            variant="outlined"
+            sx={{ mr: 1 }}
+          >
+            Retour au projet
+          </Button>
+          <Button
+            startIcon={<CalculateIcon />}
+            onClick={handleRecalculate}
+            variant="contained"
+            color="primary"
+          >
+            Nouveau calcul
+          </Button>
+        </Box>
+        <Box>
+          <Button 
+            variant="contained" 
+            color="primary" 
+            startIcon={<PictureAsPdfIcon />} 
+            onClick={handleExportPdf}
+            sx={{ mr: 1 }}
+          >
+            PDF
+          </Button>
+          <Button 
+            variant="contained" 
+            color="secondary" 
+            startIcon={<TableViewIcon />} 
+            onClick={handleExportExcel}
+          >
+            Excel
+          </Button>
+        </Box>
       </Box>
 
       <Paper elevation={2} sx={{ p: 4 }}>
@@ -176,10 +245,18 @@ const HertzianResultsViewer = () => {
         </Grid>
 
         {/* Results display */}
-        <Box sx={{ mt: 2 }}>
+        <Box sx={{ mt: 2 }} id="hertzian-results-container" ref={resultsContainerRef}>
           <HertzianResultsDisplay result={results} />
         </Box>
       </Paper>
+      
+      {/* Notifications */}
+      <Snackbar
+        open={notification.open}
+        autoHideDuration={5000}
+        onClose={handleCloseNotification}
+        message={notification.message}
+      />
     </Container>
   );
 };

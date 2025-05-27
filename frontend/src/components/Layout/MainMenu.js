@@ -116,15 +116,6 @@ const MainMenu = () => {
       </Collapse>
 
       <Divider sx={{ my: 1 }} />
-
-      <StyledNavLink to="/reports">
-        <ListItemButton>
-          <ListItemIcon>
-            <DescriptionIcon />
-          </ListItemIcon>
-          <ListItemText primary="Rapports" />
-        </ListItemButton>
-      </StyledNavLink>
     </>
   );
 };

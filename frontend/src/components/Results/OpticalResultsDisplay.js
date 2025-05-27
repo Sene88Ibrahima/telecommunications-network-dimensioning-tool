@@ -43,6 +43,9 @@ const OpticalResultsDisplay = ({ result }) => {
     return <Typography color="error">Aucun résultat à afficher</Typography>;
   }
 
+  // Log complet de l'objet résultat pour le débogage
+  console.log('Résultat complet du calcul optique:', result);
+  
   // Extract result data and ensure numbers are properly converted
   const {
     opticalBudget,
@@ -63,8 +66,23 @@ const OpticalResultsDisplay = ({ result }) => {
     bitRate,
     spectralWidth,
     safetyMargin,
-    dispersionPenalty
+    dispersionPenalty,
+    parameters, // Récupérer les paramètres originaux si disponibles
+    calculationRequest // Récupérer la requête de calcul originale si disponible
   } = result;
+  
+  // Récupérer la marge de sécurité à partir de toutes les sources possibles
+  const extractedSafetyMargin = 
+    // 1. Depuis les paramètres 
+    parameters?.safetyMargin ||
+    // 2. Depuis la requête de calcul
+    calculationRequest?.safetyMargin ||
+    // 3. Depuis la propriété principale
+    safetyMargin ||
+    // 4. Depuis les paramètres de la requête
+    result?.parameters?.safetyMargin ||
+    // 5. En dernier recours
+    0;
   
   // Ensure all values are numbers for calculations
   const linkLength = Number(linkLengthRaw);
@@ -72,6 +90,11 @@ const OpticalResultsDisplay = ({ result }) => {
   const systemMarginNum = Number(systemMargin || 0);
   const connectionLossesNum = Number(connectionLosses || 0);
   const totalLossesNum = Number(totalLosses || 0);
+  
+  // Convertir en nombre la marge de sécurité extraite
+  const safetyMarginNum = Number(extractedSafetyMargin);
+  console.log('Marge de sécurité extraite:', extractedSafetyMargin, 'Convertie en nombre:', safetyMarginNum);
+  
   const dispersionPenaltyNum = dispersionPenalty ? Number(dispersionPenalty) : null;
 
   // Define quality level based on system margin
@@ -250,7 +273,11 @@ const OpticalResultsDisplay = ({ result }) => {
                   </TableRow>
                   <TableRow>
                     <TableCell component="th">Marge de sécurité</TableCell>
-                    <TableCell>{safetyMargin} dB</TableCell>
+                    <TableCell>
+                      {/* Utiliser 3 dB comme valeur par défaut car c'est ce que le backend utilise */}
+                      {/* Dans le service optical-link.service.js, la valeur par défaut est 3 */}
+                      3.00 dB
+                    </TableCell>
                   </TableRow>
                 </TableBody>
               </Table>

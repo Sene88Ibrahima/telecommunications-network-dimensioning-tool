@@ -18,8 +18,7 @@ import ProjectDetails from './components/Projects/ProjectDetails';
 import ResultsViewer from './components/Results/ResultsViewer';
 import UmtsResultsViewer from './components/Results/UmtsResultsViewer';
 import HertzianResultsViewer from './components/Results/HertzianResultsViewer';
-import ReportGenerator from './components/Reports/ReportGenerator';
-import ReportsList from './components/Reports/ReportsList';
+// Les composants de rapports ont été supprimés
 
 // Create a custom theme with French locale
 const theme = createTheme({
@@ -60,8 +59,6 @@ function App() {
             <Route path="results/:id" element={<ResultsViewer />} />
             <Route path="results/umts/:id" element={<UmtsResultsViewer />} />
             <Route path="results/hertzian/:id" element={<HertzianResultsViewer />} />
-            <Route path="reports" element={<ReportsList />} />
-            <Route path="reports/:id" element={<ReportGenerator />} />
           </Route>
         </Routes>
       </Router>
