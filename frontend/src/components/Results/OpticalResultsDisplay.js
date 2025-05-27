@@ -19,6 +19,21 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import WarningIcon from '@mui/icons-material/Warning';
 import LinearProgress from '@mui/material/LinearProgress';
+import { Bar, Pie, Line, Doughnut } from 'react-chartjs-2';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title } from 'chart.js';
+
+// Register ChartJS components needed for the visualizations
+ChartJS.register(
+  ArcElement, 
+  Tooltip, 
+  Legend, 
+  CategoryScale, 
+  LinearScale, 
+  PointElement, 
+  LineElement, 
+  BarElement,
+  Title
+);
 
 /**
  * Dedicated component for displaying optical link calculation results
@@ -292,6 +307,203 @@ const OpticalResultsDisplay = ({ result }) => {
             </TableContainer>
           </Grid>
         </Grid>
+
+        {/* Visualizations section */}
+        <Box sx={{ mt: 4 }}>
+          <Typography variant="h6" gutterBottom>
+            Visualisations graphiques
+          </Typography>
+          <Grid container spacing={3}>
+            {/* Diagramme de budget optique */}
+            <Grid item xs={12} md={6}>
+              <Paper elevation={1} sx={{ p: 2 }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Diagramme de budget optique
+                </Typography>
+                <Box sx={{ height: 250 }}>
+                  <Bar
+                    data={{
+                      labels: ['Budget optique', 'Pertes totales', 'Marge système'],
+                      datasets: [
+                        {
+                          label: 'dB',
+                          data: [Number(opticalBudget), totalLossesNum, systemMarginNum],
+                          backgroundColor: [
+                            'rgba(54, 162, 235, 0.6)',
+                            'rgba(255, 99, 132, 0.6)',
+                            systemMarginNum >= 3 ? 'rgba(75, 192, 192, 0.6)' : 'rgba(255, 159, 64, 0.6)'
+                          ],
+                          borderColor: [
+                            'rgba(54, 162, 235, 1)',
+                            'rgba(255, 99, 132, 1)',
+                            systemMarginNum >= 3 ? 'rgba(75, 192, 192, 1)' : 'rgba(255, 159, 64, 1)'
+                          ],
+                          borderWidth: 1
+                        }
+                      ]
+                    }}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                        title: {
+                          display: true,
+                          text: 'Distribution du budget optique (dB)'
+                        },
+                        tooltip: {
+                          callbacks: {
+                            label: function(context) {
+                              return context.dataset.label + ': ' + context.raw.toFixed(2) + ' dB';
+                            }
+                          }
+                        }
+                      }
+                    }}
+                  />
+                </Box>
+              </Paper>
+            </Grid>
+            
+            {/* Jauge circulaire pour la marge système */}
+            <Grid item xs={12} md={6}>
+              <Paper elevation={1} sx={{ p: 2 }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Marge système
+                </Typography>
+                <Box sx={{ height: 250, display: 'flex', justifyContent: 'center' }}>
+                  <Doughnut
+                    data={{
+                      labels: ['Marge système', 'Pertes totales'],
+                      datasets: [
+                        {
+                          label: 'Budget optique',
+                          data: [systemMarginNum, totalLossesNum],
+                          backgroundColor: [
+                            systemMarginNum >= 10 ? 'rgba(75, 192, 192, 0.6)' : 
+                            systemMarginNum >= 6 ? 'rgba(54, 162, 235, 0.6)' : 
+                            systemMarginNum >= 3 ? 'rgba(255, 206, 86, 0.6)' : 'rgba(255, 99, 132, 0.6)',
+                            'rgba(232, 232, 232, 0.6)'
+                          ],
+                          borderColor: [
+                            systemMarginNum >= 10 ? 'rgba(75, 192, 192, 1)' : 
+                            systemMarginNum >= 6 ? 'rgba(54, 162, 235, 1)' : 
+                            systemMarginNum >= 3 ? 'rgba(255, 206, 86, 1)' : 'rgba(255, 99, 132, 1)',
+                            'rgba(200, 200, 200, 1)'
+                          ],
+                          borderWidth: 1,
+                          circumference: 180,
+                          rotation: 270
+                        }
+                      ]
+                    }}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                        title: {
+                          display: true,
+                          text: `Marge système: ${systemMarginNum.toFixed(2)} dB`
+                        },
+                        tooltip: {
+                          callbacks: {
+                            label: function(context) {
+                              return context.label + ': ' + context.raw.toFixed(2) + ' dB';
+                            }
+                          }
+                        },
+                        legend: {
+                          position: 'bottom'
+                        }
+                      },
+                      cutout: '70%'
+                    }}
+                  />
+                </Box>
+              </Paper>
+            </Grid>
+
+            {/* Graphique linéaire pour l'atténuation vs distance */}
+            <Grid item xs={12}>
+              <Paper elevation={1} sx={{ p: 2 }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Atténuation en fonction de la distance
+                </Typography>
+                <Box sx={{ height: 300 }}>
+                  <Line
+                    data={{
+                      labels: Array.from({length: 11}, (_, i) => Math.round(maxRangeNum * i / 10)),
+                      datasets: [
+                        {
+                          label: 'Atténuation totale (dB)',
+                          data: Array.from({length: 11}, (_, i) => {
+                            const distance = maxRangeNum * i / 10;
+                            return Number(fiberAttenuation) * distance + connectionLossesNum + Number(safetyMargin || 0);
+                          }),
+                          borderColor: 'rgba(255, 99, 132, 1)',
+                          backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                          fill: true,
+                          tension: 0.1
+                        },
+                        {
+                          label: 'Budget optique disponible',
+                          data: Array.from({length: 11}, () => Number(opticalBudget)),
+                          borderColor: 'rgba(54, 162, 235, 1)',
+                          borderDashed: [5, 5],
+                          pointRadius: 0
+                        },
+                        {
+                          label: 'Position actuelle',
+                          data: Array.from({length: 11}, (_, i) => {
+                            const distance = maxRangeNum * i / 10;
+                            return distance === linkLength ? Number(fiberAttenuation) * distance + connectionLossesNum + Number(safetyMargin || 0) : null;
+                          }),
+                          borderColor: 'rgba(75, 192, 192, 1)',
+                          backgroundColor: 'rgba(75, 192, 192, 1)',
+                          pointRadius: 6,
+                          pointHoverRadius: 8
+                        }
+                      ]
+                    }}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                        title: {
+                          display: true,
+                          text: 'Atténuation en fonction de la distance'
+                        },
+                        tooltip: {
+                          callbacks: {
+                            label: function(context) {
+                              if (context.dataset.label === 'Position actuelle' && context.raw !== null) {
+                                return `Votre liaison: ${linkLength.toFixed(2)} km - ${totalLossesNum.toFixed(2)} dB`;
+                              }
+                              return context.dataset.label + ': ' + (context.raw !== null ? context.raw.toFixed(2) + ' dB' : 'N/A');
+                            }
+                          }
+                        }
+                      },
+                      scales: {
+                        x: {
+                          title: {
+                            display: true,
+                            text: 'Distance (km)'
+                          }
+                        },
+                        y: {
+                          title: {
+                            display: true,
+                            text: 'Atténuation (dB)'
+                          }
+                        }
+                      }
+                    }}
+                  />
+                </Box>
+              </Paper>
+            </Grid>
+          </Grid>
+        </Box>
 
         {/* Analysis section */}
         <Box sx={{ mt: 4 }}>

@@ -782,6 +782,8 @@ const ProjectDetails = () => {
                           // Rediriger vers la page de résultats spécifique en fonction du type de réseau
                           if (project.networkType === 'UMTS') {
                             navigate(`/results/umts/${result.id}`);
+                          } else if (project.networkType === 'HERTZIEN') {
+                            navigate(`/results/hertzian/${result.id}`);
                           } else {
                             navigate(`/results/${result.id}`);
                           }

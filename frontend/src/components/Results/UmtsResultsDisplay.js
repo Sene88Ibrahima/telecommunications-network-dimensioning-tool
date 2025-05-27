@@ -14,8 +14,26 @@ import {
   Chip,
   Alert
 } from '@mui/material';
-import { Bar } from 'react-chartjs-2';
+import { Bar, Doughnut, Radar, PolarArea } from 'react-chartjs-2';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, RadialLinearScale } from 'chart.js';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import UploadIcon from '@mui/icons-material/Upload';
+import DownloadIcon from '@mui/icons-material/Download';
+import SignalCellular4BarIcon from '@mui/icons-material/SignalCellular4Bar';
+
+// Enregistrer les composants Chart.js nécessaires
+ChartJS.register(
+  ArcElement, 
+  Tooltip, 
+  Legend, 
+  CategoryScale, 
+  LinearScale, 
+  PointElement, 
+  LineElement, 
+  BarElement,
+  Title,
+  RadialLinearScale
+);
 
 /**
  * Component to display UMTS calculation results
@@ -294,6 +312,240 @@ const UmtsResultsDisplay = ({ result }) => {
               }}
             />
           </Box>
+        </Paper>
+      </Grid>
+
+      {/* Graphique en doughnut pour le facteur limitant */}
+      <Grid item xs={12} md={6}>
+        <Paper elevation={2} sx={{ p: 2 }}>
+          <Typography variant="h6" gutterBottom>
+            Facteur limitant du système
+          </Typography>
+          <Divider sx={{ mb: 2 }} />
+          <Box sx={{ height: 250, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+            <Doughnut
+              data={{
+                labels: ['Liaison montante (Uplink)', 'Liaison descendante (Downlink)'],
+                datasets: [
+                  {
+                    data: [
+                      umtsData.limitingFactor === 'UPLINK' ? 100 : 0,
+                      umtsData.limitingFactor === 'DOWNLINK' ? 100 : 0
+                    ],
+                    backgroundColor: [
+                      'rgba(54, 162, 235, 0.7)',
+                      'rgba(255, 99, 132, 0.7)'
+                    ],
+                    borderColor: [
+                      'rgba(54, 162, 235, 1)',
+                      'rgba(255, 99, 132, 1)'
+                    ],
+                    borderWidth: 1
+                  }
+                ]
+              }}
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: {
+                    position: 'bottom'
+                  },
+                  tooltip: {
+                    callbacks: {
+                      title: function() {
+                        return 'Facteur limitant';
+                      },
+                      label: function() {
+                        const factor = umtsData.limitingFactor === 'UPLINK' ? 'Liaison montante (Uplink)' : 'Liaison descendante (Downlink)';
+                        return `Le système est limité par la ${factor}`;
+                      }
+                    }
+                  }
+                },
+                cutout: '70%'
+              }}
+            />
+          </Box>
+          <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mr: 3 }}>
+              <UploadIcon sx={{ color: 'rgba(54, 162, 235, 1)', mr: 1 }} />
+              <Typography variant="body2">
+                {formatLoadFactor(umtsData.uplinkCapacity.loadFactor)} charge UL
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <DownloadIcon sx={{ color: 'rgba(255, 99, 132, 1)', mr: 1 }} />
+              <Typography variant="body2">
+                {formatLoadFactor(umtsData.downlinkCapacity.loadFactor)} charge DL
+              </Typography>
+            </Box>
+          </Box>
+        </Paper>
+      </Grid>
+
+      {/* Graphique radar pour comparer les paramètres clés */}
+      <Grid item xs={12} md={6}>
+        <Paper elevation={2} sx={{ p: 2 }}>
+          <Typography variant="h6" gutterBottom>
+            Comparaison des paramètres clés
+          </Typography>
+          <Divider sx={{ mb: 2 }} />
+          <Box sx={{ height: 300 }}>
+            <Radar
+              data={{
+                labels: [
+                  'Capacité UL (utilisateurs)',
+                  'Capacité DL (utilisateurs)',
+                  'Charge UL (%)',
+                  'Charge DL (%)',
+                  'Débit UL (kbps)',
+                  'Débit DL (kbps)'
+                ],
+                datasets: [
+                  {
+                    label: 'Valeurs normalisées',
+                    data: [
+                      // Normaliser les valeurs sur une échelle de 0 à 100
+                      (umtsData.uplinkCapacity.maxUsers / 120) * 100, // Max users UL
+                      (umtsData.downlinkCapacity.maxUsers / 200) * 100, // Max users DL
+                      umtsData.uplinkCapacity.loadFactor * 100, // Load factor UL
+                      umtsData.downlinkCapacity.loadFactor * 100, // Load factor DL
+                      (umtsData.uplinkCapacity.averageBitRate / 384) * 100, // Bit rate UL
+                      (umtsData.downlinkCapacity.averageBitRate / 384) * 100 // Bit rate DL
+                    ],
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 2,
+                    pointBackgroundColor: 'rgba(54, 162, 235, 1)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgba(54, 162, 235, 1)'
+                  }
+                ]
+              }}
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                  r: {
+                    angleLines: {
+                      display: true
+                    },
+                    suggestedMin: 0,
+                    suggestedMax: 100
+                  }
+                },
+                plugins: {
+                  tooltip: {
+                    callbacks: {
+                      label: function(context) {
+                        const label = context.dataset.label || '';
+                        const value = context.raw.toFixed(1);
+                        const originalValues = [
+                          `${umtsData.uplinkCapacity.maxUsers} utilisateurs`,
+                          `${umtsData.downlinkCapacity.maxUsers} utilisateurs`,
+                          `${(umtsData.uplinkCapacity.loadFactor * 100).toFixed(1)}%`,
+                          `${(umtsData.downlinkCapacity.loadFactor * 100).toFixed(1)}%`,
+                          `${umtsData.uplinkCapacity.averageBitRate.toFixed(1)} kbps`,
+                          `${umtsData.downlinkCapacity.averageBitRate.toFixed(1)} kbps`
+                        ];
+                        return `${context.chart.data.labels[context.dataIndex]}: ${originalValues[context.dataIndex]}`;
+                      }
+                    }
+                  }
+                }
+              }}
+            />
+          </Box>
+        </Paper>
+      </Grid>
+
+      {/* Graphique de couverture */}
+      <Grid item xs={12}>
+        <Paper elevation={2} sx={{ p: 2 }}>
+          <Typography variant="h6" gutterBottom>
+            Zone de couverture
+          </Typography>
+          <Divider sx={{ mb: 2 }} />
+          <Grid container spacing={2}>
+            <Grid item xs={12} md={6}>
+              <Box sx={{ height: 300, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                <PolarArea
+                  data={{
+                    labels: ['Rayon de cellule'],
+                    datasets: [
+                      {
+                        data: [umtsData.cellRadius],
+                        backgroundColor: ['rgba(75, 192, 192, 0.5)'],
+                        borderColor: ['rgba(75, 192, 192, 1)'],
+                        borderWidth: 1
+                      }
+                    ]
+                  }}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                      r: {
+                        ticks: {
+                          backdropColor: 'transparent',
+                          callback: function(value) {
+                            return value + ' km';
+                          }
+                        },
+                        max: Math.ceil(umtsData.cellRadius * 1.5), // 50% more than actual radius for better visualization
+                        min: 0
+                      }
+                    },
+                    plugins: {
+                      legend: {
+                        display: false
+                      },
+                      tooltip: {
+                        callbacks: {
+                          label: function(context) {
+                            return `Rayon: ${umtsData.cellRadius.toFixed(2)} km`;
+                          }
+                        }
+                      }
+                    }
+                  }}
+                />
+              </Box>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <Box sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-around' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  <SignalCellular4BarIcon sx={{ fontSize: 40, color: 'primary.main', mr: 2 }} />
+                  <Box>
+                    <Typography variant="h5">{umtsData.cellRadius.toFixed(2)} km</Typography>
+                    <Typography variant="body2" color="text.secondary">Rayon de cellule</Typography>
+                  </Box>
+                </Box>
+                
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="body1">
+                    <strong>Zone de couverture: </strong>
+                    {(Math.PI * Math.pow(umtsData.cellRadius, 2)).toFixed(2)} km²
+                  </Typography>
+                  <Typography variant="body1">
+                    <strong>Nœuds B nécessaires: </strong>
+                    {umtsData.nodeCount}
+                  </Typography>
+                  <Typography variant="body1">
+                    <strong>Zone à couvrir: </strong>
+                    {umtsData.coverageArea} km²
+                  </Typography>
+                </Box>
+                
+                <Typography variant="body2" color="text.secondary">
+                  La zone de couverture par cellule est calculée en fonction des contraintes de capacité et de propagation.
+                  Le nombre de Nœuds B nécessaire dépend de la surface totale à couvrir et de la zone couverte par cellule.
+                </Typography>
+              </Box>
+            </Grid>
+          </Grid>
         </Paper>
       </Grid>
     </Grid>

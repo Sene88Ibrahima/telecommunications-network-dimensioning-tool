@@ -24,7 +24,13 @@ exports.calculateOpticalLinkBudget = async (req, res) => {
       connectorCount,
       spliceCount,
       configurationId,
-      saveResults
+      saveResults,
+      // Nouveaux paramètres
+      bitRate,
+      spectralWidth,
+      connectorLoss,
+      spliceLoss,
+      safetyMargin
     } = req.body;
 
     // Calculate optical budget
@@ -39,24 +45,46 @@ exports.calculateOpticalLinkBudget = async (req, res) => {
       linkLength,
       wavelength,
       connectorCount,
-      spliceCount
+      spliceCount,
+      connectorLoss,
+      spliceLoss,
+      safetyMargin
     );
     
     // Calculate system margin
     const systemMargin = opticalBudget - totalLosses;
     
-    // Calculate maximum range
-    const connectorLoss = req.body.connectorLoss || (fiberType === 'MONOMODE' ? 0.5 : 1.0);
-    const spliceLoss = req.body.spliceLoss || (fiberType === 'MONOMODE' ? 0.1 : 0.3);
+    // Utiliser les valeurs fournies ou les valeurs par défaut
+    const connLoss = connectorLoss || (fiberType === 'MONOMODE' ? 0.5 : 1.0);
+    const spliceLs = spliceLoss || (fiberType === 'MONOMODE' ? 0.1 : 0.3);
+    const safety = safetyMargin || 3;
     const fiberAttenuation = opticalLinkService.getFiberAttenuation(fiberType, wavelength);
     
-    const connectionLosses = (connectorCount * connectorLoss) + (spliceCount * spliceLoss);
+    const connectionLosses = (connectorCount * connLoss) + (spliceCount * spliceLs);
     
     const maxRange = opticalLinkService.calculateMaxRange(
       opticalBudget,
       fiberAttenuation,
-      connectionLosses
+      connectionLosses,
+      safety
     );
+    
+    // Calculer la pénalité due à la dispersion si les paramètres sont fournis
+    let dispersionPenalty = null;
+    let chromaticDispersion = null;
+    
+    if (bitRate && spectralWidth) {
+      chromaticDispersion = opticalLinkService.calculateChromaticDispersion(
+        wavelength,
+        linkLength,
+        spectralWidth
+      );
+      
+      dispersionPenalty = opticalLinkService.calculateDispersionPenalty(
+        bitRate,
+        chromaticDispersion
+      );
+    }
 
     // Prepare result object
     const result = {
@@ -72,10 +100,17 @@ exports.calculateOpticalLinkBudget = async (req, res) => {
       connectorCount,
       spliceCount,
       fiberAttenuation,
-      connectorLoss,
-      spliceLoss,
-      connectionLosses
+      connectorLoss: connLoss,
+      spliceLoss: spliceLs,
+      connectionLosses,
+      safetyMargin: safety
     };
+    
+    // Ajouter les paramètres supplémentaires s'ils sont disponibles
+    if (bitRate) result.bitRate = bitRate;
+    if (spectralWidth) result.spectralWidth = spectralWidth;
+    if (chromaticDispersion) result.chromaticDispersion = chromaticDispersion;
+    if (dispersionPenalty) result.dispersionPenalty = dispersionPenalty;
 
     // Save result to database if requested
     if (saveResults && configurationId) {

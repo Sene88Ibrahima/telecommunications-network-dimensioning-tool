@@ -26,15 +26,18 @@ exports.calculateOpticalBudget = (transmitterPower, receiverSensitivity) => {
  * @param {number} wavelength - Wavelength in nm
  * @param {number} connectorCount - Number of connectors
  * @param {number} spliceCount - Number of splices
+ * @param {number} [customConnectorLoss] - Custom connector loss in dB (optional)
+ * @param {number} [customSpliceLoss] - Custom splice loss in dB (optional)
+ * @param {number} [customSafetyMargin] - Custom safety margin in dB (optional)
  * @returns {number} - Total losses in dB
  */
-exports.calculateTotalLosses = (fiberType, linkLength, wavelength, connectorCount, spliceCount) => {
+exports.calculateTotalLosses = (fiberType, linkLength, wavelength, connectorCount, spliceCount, customConnectorLoss, customSpliceLoss, customSafetyMargin) => {
   // Get fiber attenuation coefficient based on fiber type and wavelength
   const fiberAttenuation = getFiberAttenuation(fiberType, wavelength);
   
-  // Get connector and splice losses based on fiber type
-  const connectorLoss = fiberType === 'MONOMODE' ? 0.5 : 1.0; // dB per connector
-  const spliceLoss = fiberType === 'MONOMODE' ? 0.1 : 0.3; // dB per splice
+  // Get connector and splice losses based on fiber type or use custom values if provided
+  const connectorLoss = customConnectorLoss || (fiberType === 'MONOMODE' ? 0.5 : 1.0); // dB per connector
+  const spliceLoss = customSpliceLoss || (fiberType === 'MONOMODE' ? 0.1 : 0.3); // dB per splice
   
   // Calculate fiber attenuation
   const fiberLoss = fiberAttenuation * linkLength;
@@ -45,8 +48,8 @@ exports.calculateTotalLosses = (fiberType, linkLength, wavelength, connectorCoun
   // Calculate splice losses
   const spliceLosses = spliceCount * spliceLoss;
   
-  // Add safety margin
-  const safetyMargin = 3; // 3dB safety margin is common practice
+  // Add safety margin (default 3dB or custom value)
+  const safetyMargin = customSafetyMargin !== undefined ? customSafetyMargin : 3;
   
   // Calculate total losses
   const totalLosses = fiberLoss + connectorLosses + spliceLosses + safetyMargin;
@@ -94,11 +97,12 @@ function getFiberAttenuation(fiberType, wavelength) {
  * @param {number} opticalBudget - Optical budget in dB
  * @param {number} linearAttenuation - Fiber attenuation coefficient in dB/km
  * @param {number} connectionLosses - Total connection losses in dB (connectors, splices, etc.)
+ * @param {number} [customSafetyMargin] - Custom safety margin in dB (optional)
  * @returns {number} - Maximum range in km
  */
-exports.calculateMaxRange = (opticalBudget, linearAttenuation, connectionLosses) => {
-  // Apply safety margin
-  const safetyMargin = 3; // 3dB safety margin
+exports.calculateMaxRange = (opticalBudget, linearAttenuation, connectionLosses, customSafetyMargin) => {
+  // Apply safety margin (default 3dB or custom value)
+  const safetyMargin = customSafetyMargin !== undefined ? customSafetyMargin : 3;
   
   // Available budget for fiber attenuation
   const availableBudget = opticalBudget - connectionLosses - safetyMargin;
